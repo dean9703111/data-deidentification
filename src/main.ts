@@ -52,6 +52,14 @@ function mount(): void {
   for (const t of TABS) {
     nav.append(el('button', { class: 'tab', 'data-tab': t.id, type: 'button', onClick: () => activate(t.id) }, t.label));
   }
+  const help = el('a', {
+    class: 'tab tab-link',
+    href: 'https://github.com/dean9703111/data-deidentification#操作流程',
+    target: '_blank',
+    rel: 'noopener',
+    title: '開啟 GitHub 專案頁的操作說明',
+  }, '使用說明 ↗');
+  nav.append(help);
 
   const social: [string, string, string][] = [
     ['Medium', 'https://medium.com/@dean-lin', ICONS.medium],

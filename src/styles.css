@@ -297,3 +297,5 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .social-link:hover { color: var(--primary) !important; background: var(--bg); text-decoration: none !important; }
 .social-link svg { flex-shrink: 0; }
 .seo-fallback { max-width: 800px; margin: 3rem auto; padding: 0 1.5rem; line-height: 1.7; }
+.tab-link { text-decoration: none; margin-left: 0.35rem; border-color: var(--border); }
+.tab-link:hover { color: var(--primary); }
