@@ -73,7 +73,6 @@ function mount(): void {
           el('a', { href: 'https://github.com/dean9703111/data-deidentification', target: '_blank', rel: 'noopener' }, '原始碼與說明'),
         ),
         el('div', { class: 'footer-social' },
-          el('span', { class: 'muted' }, 'Dean Lin：'),
           ...social.map(([name, url, icon]) => {
             const a = el('a', { class: 'social-link', href: url, target: '_blank', rel: 'noopener', title: name, 'aria-label': name });
             a.innerHTML = icon;
