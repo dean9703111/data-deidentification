@@ -41,12 +41,32 @@ function mount(): void {
     nav.append(el('button', { class: 'tab', 'data-tab': t.id, type: 'button', onClick: () => activate(t.id) }, t.label));
   }
 
+  const social: [string, string][] = [
+    ['Medium', 'https://medium.com/@dean-lin'],
+    ['Facebook', 'https://www.facebook.com/deanlinbao'],
+    ['Threads', 'https://www.threads.com/@deanlin5288'],
+    ['YouTube', 'https://www.youtube.com/@dlcorner'],
+    ['GitHub', 'https://github.com/dean9703111'],
+  ];
   app.append(
     el('header', { class: 'header' },
       el('div', { class: 'brand' }, el('h1', {}, '文件去識別化工具'), el('span', { class: 'muted' }, '純前端處理・文件不離開你的電腦')),
       nav,
     ),
     panels,
+    el('footer', { class: 'footer' },
+      el('div', { class: 'footer-inner' },
+        el('div', {},
+          el('strong', {}, '文件去識別化工具'),
+          el('span', { class: 'muted' }, '　開源專案（MIT）・'),
+          el('a', { href: 'https://github.com/dean9703111/data-deidentification', target: '_blank', rel: 'noopener' }, '原始碼與說明'),
+        ),
+        el('div', { class: 'footer-social' },
+          el('span', { class: 'muted' }, 'Dean Lin：'),
+          ...social.map(([name, url]) => el('a', { href: url, target: '_blank', rel: 'noopener' }, name)),
+        ),
+      ),
+    ),
   );
   activate('process');
 
