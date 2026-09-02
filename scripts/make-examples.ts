@@ -136,4 +136,24 @@ head -c 26214400 /dev/zero | tr '\\0' 'A' > 超過上限.txt
   );
 }
 
-console.log('examples written under', ROOT);
+// 網頁與 README 的「體驗範例」：同一批檔案以 ASCII 檔名放進 public/samples/（隨站台部署）
+{
+  const d = 'public/samples';
+  rmSync(d, { recursive: true, force: true });
+  mkdirSync(d, { recursive: true });
+  write(join(d, 'contract.docx'), contractDocx);
+  write(join(d, 'contract.pdf'), await renderPdf(contractDoc, font));
+  write(join(d, 'quotation.docx'), await renderDocx(quotationDoc));
+  write(join(d, 'quotation.pdf'), await renderPdf(quotationDoc, font));
+  write(join(d, 'customers.xlsx'), await buildXlsx(customers()));
+  write(join(d, 'support-email.txt'), supportEmail());
+  write(join(d, 'meeting-notes.md'), meetingNotes());
+  const file = new File([contractDocx as BlobPart], '委外服務契約書.docx');
+  const doc = await parseDocx(file);
+  const items = detect(doc.text, BUILTIN_PATTERNS);
+  const { edits, mapping } = applyRedactions(doc.text, items);
+  write(join(d, 'contract.deid.docx'), new Uint8Array(await (await generateDocx(doc, edits)).arrayBuffer()));
+  write(join(d, 'contract.mapping.csv'), serializeMapping(mapping));
+}
+
+console.log('examples written under', ROOT, 'and public/samples');

@@ -10,6 +10,7 @@ import { ACCEPT_ATTR, formatLimitations, generateDocument, mappingFileName, outp
 import { button, clear, downloadBlob, dropZone, el, toast } from './components';
 import { renderDocumentPreview, type Decoration } from './preview';
 import { buildArchive } from '../formats/batch';
+import { SAMPLES, samplesSection } from './samples';
 
 export const MAX_FILES = 10;
 
@@ -166,6 +167,7 @@ function render(root: HTMLElement): void {
         onFiles: (files) => void loadFiles(files, root),
       }),
       renderPasteBox(root),
+      samplesSection('沒有檔案？用範例體驗', SAMPLES, (file) => void loadFiles([file], root)),
     );
     return;
   }

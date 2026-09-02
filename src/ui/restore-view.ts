@@ -4,6 +4,7 @@ import { restore, type RestoreResult } from '../core/restorer';
 import { ACCEPT_ATTR, generateDocument, outputFileName, parseDocument } from '../formats';
 import { button, clear, downloadBlob, dropZone, el, toast } from './components';
 import { renderDocumentPreview, type Decoration } from './preview';
+import { RESTORE_SAMPLE, fetchSample, sampleUrl } from './samples';
 
 interface State {
   doc: LoadedDocument | null;
@@ -36,6 +37,34 @@ function render(root: HTMLElement): void {
     ),
   );
   if (state.result) root.append(renderResult(root));
+  else {
+    root.append(
+      el('section', { class: 'samples' },
+        el('h3', {}, '用範例體驗還原'),
+        el('p', { class: 'muted small' }, '範例為已去識別化的 4 頁契約書與其編碼表（虛構資料）。「載入體驗」會同時載入兩個檔案並自動還原。'),
+        el('div', { class: 'sample-actions' },
+          button('載入體驗', () => void loadSamplePair(root), 'btn btn-small btn-primary'),
+          el('a', { class: 'btn btn-small', href: sampleUrl(RESTORE_SAMPLE.doc.file), download: RESTORE_SAMPLE.doc.name }, `下載 ${RESTORE_SAMPLE.doc.name}`),
+          el('a', { class: 'btn btn-small', href: sampleUrl(RESTORE_SAMPLE.csv.file), download: RESTORE_SAMPLE.csv.name }, `下載 ${RESTORE_SAMPLE.csv.name}`),
+        ),
+      ),
+    );
+  }
+}
+
+async function loadSamplePair(root: HTMLElement): Promise<void> {
+  try {
+    const [doc, csv] = await Promise.all([fetchSample(RESTORE_SAMPLE.doc), fetchSample(RESTORE_SAMPLE.csv)]);
+    state.doc = await parseDocument(doc);
+    const { entries, errors } = parseMapping(await csv.text());
+    if (errors.length) throw new Error(errors[0]);
+    state.mapping = entries;
+    state.result = null;
+    tryRestore();
+    render(root);
+  } catch (e) {
+    toast((e as Error).message, 'error', 7000);
+  }
 }
 
 function fileChip(label: string, onRemove: () => void): HTMLElement {
