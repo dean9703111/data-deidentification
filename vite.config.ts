@@ -9,5 +9,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['tests/**/*.test.ts'],
+    // PDF/docx round-trips embed fonts and zip files; give them headroom on slow CI runners.
+    testTimeout: 30000,
   },
 });
