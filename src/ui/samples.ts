@@ -10,14 +10,12 @@ export interface Sample {
 
 const BASE = `${import.meta.env.BASE_URL}samples/`;
 
+/** One sample per format, shown as a single compact row on the upload screen. */
 export const SAMPLES: Sample[] = [
-  { file: 'contract.docx', name: '委外服務契約書.docx', format: 'DOCX', description: '4 頁契約：立契約書人、十二條條款、附件表格、簽署頁' },
-  { file: 'contract.pdf', name: '委外服務契約書.pdf', format: 'PDF', description: '同一份契約的 PDF 版本（含頁首頁尾與表格）' },
-  { file: 'quotation.docx', name: '報價單.docx', format: 'DOCX', description: '4 頁報價單：客戶資料、20 項明細、聯絡窗口、簽回頁' },
-  { file: 'quotation.pdf', name: '報價單.pdf', format: 'PDF', description: '同一份報價單的 PDF 版本' },
-  { file: 'customers.xlsx', name: '客戶資料.xlsx', format: 'XLSX', description: '60 筆客戶＋聯絡紀錄＋業務窗口三個工作表' },
-  { file: 'support-email.txt', name: '客服信件.txt', format: 'TXT', description: '客服回覆信與引用的原始來信' },
-  { file: 'meeting-notes.md', name: '專案會議紀錄.md', format: 'MD', description: 'Markdown 會議紀錄：出席者、決議表格、待辦' },
+  { file: 'contract.docx', name: '委外服務契約書.docx', format: 'Word', description: '4 頁契約，含表格與頁首頁尾' },
+  { file: 'quotation.pdf', name: '報價單.pdf', format: 'PDF', description: '4 頁報價單，跨頁明細表' },
+  { file: 'customers.xlsx', name: '客戶資料.xlsx', format: 'Excel', description: '60 筆客戶，三個工作表' },
+  { file: 'meeting-notes.md', name: '專案會議紀錄.md', format: 'Markdown', description: '出席者、決議、待辦' },
 ];
 
 export const RESTORE_SAMPLE = {
@@ -46,7 +44,7 @@ export function sampleCard(s: Sample, onLoad?: (file: File) => void): HTMLElemen
     ),
     el('div', { class: 'sample-actions' },
       onLoad
-        ? button('載入體驗', () => {
+        ? button('載入', () => {
             fetchSample(s).then(onLoad).catch((e: Error) => toast(e.message, 'error'));
           }, 'btn btn-small btn-primary')
         : null,
@@ -59,9 +57,11 @@ export function samplesSection(title: string, samples: Sample[], onLoad?: (file:
   return el(
     'section',
     { class: 'samples' },
-    el('h3', {}, title),
-    el('p', { class: 'muted small' }, '所有範例皆為程式產生的虛構資料（姓名、公司、地址、電話、證號均非真人），可放心試用；「載入體驗」直接把檔案送進本頁處理，「下載」則取得原始檔案。'),
-    el('div', { class: 'sample-grid' }, ...samples.map((s) => sampleCard(s, onLoad))),
+    el('div', { class: 'samples-head' },
+      el('h3', {}, title),
+      el('span', { class: 'muted small' }, '皆為程式產生的虛構資料；「載入」直接送進本頁處理，「下載」取得原始檔'),
+    ),
+    el('div', { class: 'sample-row' }, ...samples.map((s) => sampleCard(s, onLoad))),
     extra ?? null,
   );
 }
