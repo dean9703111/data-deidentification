@@ -283,7 +283,7 @@ public/fonts/    Noto Sans TC（PDF 輸出用）
 
 `.github/workflows/deploy.yml`：push 到 `main` → `npm ci` → `npm test` → `npm run build` → 部署 `dist/` 到 GitHub Pages。Vite 設定 `base: './'`，所以在任何子路徑（如 `/data-deidentification/`）或以檔案方式開啟都能運作。
 
-SEO：`index.html` 內含 description、canonical、Open Graph／Twitter Card（`public/og.png`）、`SoftwareApplication` JSON-LD 與無 JavaScript 時的靜態說明；`public/robots.txt` 與 `sitemap.xml` 隨站台部署。
+SEO／AEO／GEO：`index.html` 內含 description、canonical、Open Graph／Twitter Card（`public/og.png`）、JSON-LD（`WebSite`、`WebPage`、`WebApplication`、`SoftwareSourceCode`、`FAQPage` 與作者 `Person`），以及一段靜態的「關於／使用方式／支援格式／常見問題」內容：不需要 JavaScript 就能被搜尋引擎與 AI 爬蟲讀到，載入後收進頁尾「常見問題」開啟的彈窗（FAQ 的 JSON-LD 與頁面文字須保持一致）。`public/robots.txt` 與給 LLM 讀的站台摘要 `public/llms.txt` 隨站台部署；`public/sitemap.xml` 的 `__BUILD_DATE__` 佔位由 `vite.config.ts` 在建置時換成當天日期作為 `lastmod`。
 
 ## 授權
 

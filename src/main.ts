@@ -25,7 +25,19 @@ const TABS: { id: TabId; label: string; create: () => HTMLElement }[] = [
 
 function mount(): void {
   const app = document.getElementById('app')!;
+  // Static about/FAQ content shipped in index.html for crawlers; after mount it lives in a dialog opened from the footer.
+  const siteInfo = document.getElementById('site-info');
   app.replaceChildren(); // drop the static SEO fallback
+  const infoDialog = el('dialog', { class: 'site-info-dialog', 'aria-label': '常見問題' });
+  if (siteInfo) {
+    infoDialog.append(
+      el('button', { class: 'dialog-close', type: 'button', 'aria-label': '關閉', onClick: () => infoDialog.close() }, '✕'),
+      siteInfo,
+    );
+    infoDialog.addEventListener('click', (e) => {
+      if (e.target === infoDialog) infoDialog.close(); // backdrop click
+    });
+  }
   const nav = el('nav', { class: 'tabs' });
   const panels = el('main', { class: 'panels' });
   const views = new Map<TabId, HTMLElement>();
@@ -79,7 +91,9 @@ function mount(): void {
         el('div', {},
           el('strong', {}, '文件去識別化工具'),
           el('span', { class: 'muted' }, '　開源專案（MIT）・'),
-          el('a', { href: 'https://github.com/dean9703111/data-deidentification', target: '_blank', rel: 'noopener' }, '原始碼與說明'),
+          el('a', { href: 'https://github.com/dean9703111/data-deidentification', target: '_blank', rel: 'noopener' }, '原始碼'),
+          siteInfo ? el('span', { class: 'muted' }, '・') : null,
+          siteInfo ? el('button', { class: 'link-btn', type: 'button', onClick: () => infoDialog.showModal() }, '常見問題') : null,
         ),
         el('div', { class: 'footer-social' },
           ...social.map(([name, url, icon]) => {
@@ -91,6 +105,7 @@ function mount(): void {
         ),
       ),
     ),
+    infoDialog,
   );
   activate('process');
 

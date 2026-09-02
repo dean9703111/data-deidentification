@@ -1,0 +1,58 @@
+# 文件去識別化工具（Data De-identification Tool）
+
+> 免費、開源、純前端的線上文件去識別化工具：上傳 PDF、Word、Excel、TXT、Markdown 或貼上文字，自動偵測姓名、身分證字號、手機、市話、地址、電子郵件、公司名稱、統一編號與自訂識別碼，遮罩預覽、人工覆核後下載去識別化文件與 CSV 編碼表，日後可憑編碼表完整還原。所有處理在瀏覽器內完成，檔案不會上傳到任何伺服器。
+
+- 網址：https://deanlin.net/data-deidentification/
+- 原始碼（MIT 授權）：https://github.com/dean9703111/data-deidentification
+- 作者：Dean Lin（https://deanlin.net/）
+- 語言：繁體中文（台灣）；內建偵測規則以台灣常見格式為主
+- 適用情境：把合約、報價單、客戶清單、客服信件、會議紀錄交給外包廠商、AI 服務或研究單位之前先移除個資，事後仍可還原
+
+## 主要特點
+
+- 多格式輸入：.pdf（需含文字層）、.docx、.xlsx、.txt、.md，或直接貼上文字；一次最多 10 個檔案混合處理，單檔 20 MB 以內
+- 九種內建偵測類別：中文姓名、身分證字號（檢核碼驗證）、手機、市話、地址、電子郵件、公司／組織名稱、統一編號（檢核碼驗證）、自訂識別碼；可停用內建規則、以正規表達式新增自訂規則並即時測試
+- 格式感知預覽：Word 顯示段落／標題／表格／頁首頁尾，Excel 顯示工作表格線，PDF 逐頁依原座標排版；遮罩以「王OO」「0912-***-678」「A12******9」等可讀樣式呈現
+- 人工覆核：點擊標記取消誤判、點擊種類整批取消、圈選文字手動新增、偵測清單定位
+- 保留原格式輸出：Word／Excel 直接改寫文字節點，樣式與表格不動；PDF 以文字重建（非色塊覆蓋）輸出，內嵌 Noto Sans TC 子集，輸出檔不殘留原始敏感文字
+- 可還原：每筆敏感資訊換成 [類別:編碼] 形式的唯一隨機編碼（同一個值每次出現的編碼都不同），CSV 編碼表是還原的唯一憑證
+- 隱私：純前端、無後端、可離線；瀏覽器只儲存偵測規則設定，文件內容與編碼表不落地
+- 批量輸出：多檔時一鍵打包 ZIP（每個檔案的去識別化檔＋編碼表＋對照清單）
+
+## 使用流程
+
+1. 在「去識別化」頁籤拖入檔案或貼上文字，按「開始去識別化」
+2. 在預覽中檢視自動偵測結果，滑鼠停留可看原文與實際輸出標記
+3. 人工調整：取消誤判、整批取消某一種類、圈選新增漏抓
+4. 下載去識別化文件（同格式，檔名加 .deid）與編碼表（*.mapping.csv）
+5. 需要復原時，到「還原」頁籤上傳去識別化文件與編碼表，下載還原檔（檔名加 .restored）
+
+## 輸出格式
+
+- 文件中每筆敏感資訊以 `[類別:編碼]` 取代，例如 `[姓名:a3f9c2]`；編碼為 6 位小寫十六進位，由 crypto.getRandomValues 產生，與原文無數學關聯
+- 編碼表為 UTF-8（含 BOM）、RFC 4180 的 CSV，欄位為 code,category,original，Excel 可直接開啟
+- 還原時以 code 查表；文件中查無的編碼會保留原標記並列出警告
+
+## 限制
+
+- 不支援舊版 .doc、.xls；掃描影像 PDF（無文字層）無法處理，不提供 OCR
+- PDF 輸出不保留圖片、圖形與原字型；Excel 僅處理文字型儲存格，數值型電話／證號、公式結果、工作表名稱與註解不在範圍
+- 中文姓名與地址無法以規則做到零誤判／零漏抓，請務必在預覽中人工覆核
+
+## 常見問題
+
+- 檔案會上傳嗎？不會，全部在瀏覽器內處理，沒有後端
+- 可以還原嗎？可以，用 CSV 編碼表在「還原」頁籤還原，缺漏的編碼會列出警告
+- 要收費嗎？免費，MIT 開源；`npm run build` 產出的 dist/ 可放到任何靜態空間自行架設，或直接以檔案開啟
+- PDF 為什麼不用黑框覆蓋？覆蓋法底層文字仍可被複製；本工具以文字重建輸出，敏感文字真正從檔案移除
+
+## 參考連結
+
+- [完整操作說明與截圖（README）](https://github.com/dean9703111/data-deidentification#readme)
+- [偵測規則說明](https://github.com/dean9703111/data-deidentification#偵測規則)
+- [輸出格式：標記與編碼表](https://github.com/dean9703111/data-deidentification#輸出格式標記與編碼表)
+- [範例：委外服務契約書 (Word)](https://deanlin.net/data-deidentification/samples/contract.docx)
+- [範例：報價單 (PDF)](https://deanlin.net/data-deidentification/samples/quotation.pdf)
+- [範例：客戶資料 (Excel)](https://deanlin.net/data-deidentification/samples/customers.xlsx)
+- [範例：客服信件 (TXT)](https://deanlin.net/data-deidentification/samples/support-email.txt)
+- [範例：已去識別化契約書＋編碼表（還原體驗）](https://deanlin.net/data-deidentification/samples/contract.deid.docx)
