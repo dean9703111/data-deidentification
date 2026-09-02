@@ -116,7 +116,7 @@ function renderBlock(l: Layout, b: Block): void {
       l.text(b.text, 10.5, { align: 'center', gap: 14, color: GRAY });
       break;
     case 'heading':
-      l.ensure(40);
+      l.ensure(80); // keep the heading with at least the first lines/rows of what follows
       l.y -= 6;
       l.text(b.text, 12.5, { gap: 4 });
       break;
@@ -132,9 +132,6 @@ function renderBlock(l: Layout, b: Block): void {
       break;
     case 'spacer':
       l.y -= 14;
-      break;
-    case 'pageBreak':
-      l.newPage();
       break;
   }
 }

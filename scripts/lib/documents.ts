@@ -1,5 +1,6 @@
-// Realistic example documents (all data fictional): a 4-page service contract,
-// a 4-page quotation, a 60-row customer workbook, and a few text files.
+// Realistic example documents (all data fictional): a service contract (4 pages in Word,
+// 3 in PDF), a 3-page quotation, a 60-row customer workbook, and a few text files.
+// Content flows continuously — no forced page breaks — so pages are full like real documents.
 import type { DocModel } from './docmodel.ts';
 import { Fake } from './fake.ts';
 import type { CellSpec, XlsxSpec } from '../../tests/helpers/xlsx-builder.ts';
@@ -32,7 +33,7 @@ function party(f: Fake): Party {
 const money = (n: number) => `NT$ ${n.toLocaleString('zh-TW')}`;
 
 // ---------------------------------------------------------------------------------------
-// 服務契約書（4 頁）
+// 服務契約書（Word 4 頁／PDF 3 頁）
 // ---------------------------------------------------------------------------------------
 export function contract(seed = 101): DocModel {
   const f = new Fake(seed);
@@ -81,7 +82,6 @@ export function contract(seed = 101): DocModel {
       { type: 'para', text: '匯款手續費由甲方負擔。乙方應依法開立收據或發票。', indent: true },
       { type: 'heading', text: '第四條　服務水準' },
       { type: 'para', text: '乙方應於甲方通報重大事件後二小時內回應，並於八小時內提出處置方案；一般事件應於一個工作日內回應。乙方每月應提供服務報告予甲方資訊窗口。', indent: true },
-      { type: 'pageBreak' },
       { type: 'heading', text: '第五條　保密義務' },
       { type: 'para', text: `乙方因履行本契約而知悉或持有甲方之營業秘密、客戶資料（含客戶姓名、身分證字號、聯絡電話、地址等個人資料）及其他機密資訊，應負保密義務，非經甲方書面同意不得洩漏、交付或使第三人知悉。本條義務於契約終止後五年內仍持續有效。`, indent: true },
       { type: 'heading', text: '第六條　個人資料保護' },
@@ -98,7 +98,6 @@ export function contract(seed = 101): DocModel {
       { type: 'para', text: '本契約以中華民國法律為準據法。因本契約所生之爭議，雙方同意以臺灣臺北地方法院為第一審管轄法院。', indent: true },
       { type: 'heading', text: '第十二條　其他' },
       { type: 'para', text: '本契約未盡事宜，依相關法令及誠信原則處理。本契約一式二份，由甲乙雙方各執一份為憑。附件為本契約之一部分，與本契約具同等效力。', indent: true },
-      { type: 'pageBreak' },
       { type: 'heading', text: '附件一　服務項目表' },
       {
         type: 'table',
@@ -119,7 +118,6 @@ export function contract(seed = 101): DocModel {
         rows: contactRows,
       },
       { type: 'para', text: '聯絡窗口異動時，應於三個工作日內以電子郵件通知他方。' },
-      { type: 'pageBreak' },
       { type: 'heading', text: '簽署' },
       { type: 'para', text: '雙方確認已充分閱讀並理解本契約全部條款，同意簽署如下：' },
       { type: 'spacer' },
@@ -135,7 +133,7 @@ export function contract(seed = 101): DocModel {
 }
 
 // ---------------------------------------------------------------------------------------
-// 報價單（4 頁）
+// 報價單（3 頁）
 // ---------------------------------------------------------------------------------------
 export function quotation(seed = 202): DocModel {
   const f = new Fake(seed);
@@ -193,19 +191,10 @@ export function quotation(seed = 202): DocModel {
       {
         type: 'table',
         columns: [{ header: '項次', width: 1 }, { header: '品項', width: 3 }, { header: '規格', width: 6 }, { header: '數量', width: 1.2 }, { header: '單價', width: 2.4 }, { header: '小計', width: 2.6 }],
-        rows: rows.slice(0, 10),
-      },
-      { type: 'para', text: '（明細續下頁）', align: 'right' },
-      { type: 'pageBreak' },
-      { type: 'heading', text: '報價明細（續）' },
-      {
-        type: 'table',
-        columns: [{ header: '項次', width: 1 }, { header: '品項', width: 3 }, { header: '規格', width: 6 }, { header: '數量', width: 1.2 }, { header: '單價', width: 2.4 }, { header: '小計', width: 2.6 }],
-        rows: rows.slice(10),
+        rows,
       },
       { type: 'kv', rows: [['未稅合計', money(subtotal)], ['營業稅 5%', money(tax)], ['含稅總計', money(subtotal + tax)]] },
       { type: 'para', text: '以上金額以新台幣計價。本報價含運送至送貨地址之運費，不含進口關稅及其他規費。', indent: true },
-      { type: 'pageBreak' },
       { type: 'heading', text: '交貨與驗收' },
       { type: 'para', text: `硬體設備於收到訂單後 45 個日曆天內交付至 ${client.address}；軟體授權於收到訂單後 7 個工作天內以電子方式交付。到貨後由客戶聯絡人 ${client.contact} 會同本公司人員進行驗收，驗收期間為 10 個工作天。`, indent: true },
       { type: 'heading', text: '付款條件' },
@@ -223,7 +212,6 @@ export function quotation(seed = 202): DocModel {
         ],
       },
       { type: 'para', text: `本報價單有任何疑問，請洽業務代表 ${sales.name}（${sales.mobile}）。` },
-      { type: 'pageBreak' },
       { type: 'heading', text: '客戶確認簽回' },
       { type: 'para', text: '本公司同意依上述報價內容與條件採購，請於簽章後回傳。' },
       { type: 'spacer' },

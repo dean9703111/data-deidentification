@@ -227,9 +227,9 @@ PDF 依原始座標逐頁排版（下圖 1 頁碼、2 頁面），表格與版�
 
 | 範例 | 格式 | 內容 | 下載 |
 |------|------|------|------|
-| 委外服務契約書 | Word | 4 頁契約：立契約書人、十二條條款、附件表格、簽署頁（含頁首頁尾） | [contract.docx](https://deanlin.net/data-deidentification/samples/contract.docx) |
+| 委外服務契約書 | Word | 4 頁契約：立契約書人、十二條條款、附件表格、簽署欄（含頁首頁尾） | [contract.docx](https://deanlin.net/data-deidentification/samples/contract.docx) |
 | 委外服務契約書 | PDF | 同一份契約的 PDF 版本 | [contract.pdf](https://deanlin.net/data-deidentification/samples/contract.pdf) |
-| 報價單 | Word | 4 頁報價單：客戶資料、20 項明細（跨頁表格）、聯絡窗口、簽回頁 | [quotation.docx](https://deanlin.net/data-deidentification/samples/quotation.docx) |
+| 報價單 | Word | 3 頁報價單：客戶資料、20 項明細（跨頁表格）、聯絡窗口、簽回欄 | [quotation.docx](https://deanlin.net/data-deidentification/samples/quotation.docx) |
 | 報價單 | PDF | 同一份報價單的 PDF 版本 | [quotation.pdf](https://deanlin.net/data-deidentification/samples/quotation.pdf) |
 | 客戶資料 | Excel | 60 筆客戶＋聯絡紀錄 30 筆＋業務窗口，三個工作表 | [customers.xlsx](https://deanlin.net/data-deidentification/samples/customers.xlsx) |
 | 客服信件 | TXT | 客服回覆信與引用的原始來信 | [support-email.txt](https://deanlin.net/data-deidentification/samples/support-email.txt) |

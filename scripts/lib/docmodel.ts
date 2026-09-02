@@ -14,8 +14,7 @@ export type Block =
   | { type: 'para'; text: string; align?: 'left' | 'center' | 'right'; bold?: boolean; indent?: boolean }
   | { type: 'kv'; rows: [string, string][] }
   | { type: 'table'; columns: TableColumn[]; rows: string[][] }
-  | { type: 'spacer' }
-  | { type: 'pageBreak' };
+  | { type: 'spacer' };
 
 export interface DocModel {
   title: string;

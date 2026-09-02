@@ -142,11 +142,11 @@ describe('realistic contract (docx)', () => {
 });
 
 describe('realistic contract (pdf)', () => {
-  it('parses 4 pages with expected headings and full completeness for ID/email/mobile', async () => {
+  it('parses 3 pages with expected headings and full completeness for ID/email/mobile', async () => {
     const model = contract();
     const bytes = await renderPdf(model, FONT);
     const pageCount = (await PDFDocument.load(bytes)).getPageCount();
-    expect(pageCount).toBe(4);
+    expect(pageCount).toBe(3);
 
     const doc = await parsePdf(toPdfFile(bytes, 'contract.pdf'));
     expect(doc.text).toContain('委外服務契約書');
@@ -180,7 +180,7 @@ describe('realistic contract (pdf)', () => {
     const newDoc = await parsePdf(toPdfFile(outBytes, 'contract-redacted.pdf'));
 
     const newPageCount = (await PDFDocument.load(outBytes)).getPageCount();
-    expect(newPageCount).toBe(4);
+    expect(newPageCount).toBe(3);
 
     for (const item of items.filter((i) => i.active)) {
       expect(newDoc.text.includes(item.original)).toBe(false);
@@ -229,11 +229,11 @@ describe('realistic quotation (docx)', () => {
 });
 
 describe('realistic quotation (pdf)', () => {
-  it('parses 4 pages and round-trips with lighter category assertions', async () => {
+  it('parses 3 pages and round-trips with lighter category assertions', async () => {
     const model = quotation();
     const bytes = await renderPdf(model, FONT);
     const pageCount = (await PDFDocument.load(bytes)).getPageCount();
-    expect(pageCount).toBe(4);
+    expect(pageCount).toBe(3);
 
     const originalDoc = await parsePdf(toPdfFile(bytes, 'quotation.pdf'));
     const items = detect(originalDoc.text, BUILTIN_PATTERNS);
@@ -247,7 +247,7 @@ describe('realistic quotation (pdf)', () => {
     const newDoc = await parsePdf(toPdfFile(outBytes, 'quotation-redacted.pdf'));
 
     const newPageCount = (await PDFDocument.load(outBytes)).getPageCount();
-    expect(newPageCount).toBe(4);
+    expect(newPageCount).toBe(3);
 
     for (const item of items.filter((i) => i.active)) {
       expect(newDoc.text.includes(item.original)).toBe(false);

@@ -76,8 +76,6 @@ function renderBlock(b: Block, i: number): string {
       return table(b.columns, b.rows, i);
     case 'spacer':
       return '<w:p/>';
-    case 'pageBreak':
-      return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
   }
 }
 

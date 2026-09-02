@@ -28,7 +28,7 @@ const dir = (name: string) => {
 const write = (p: string, data: string | Uint8Array) => writeFileSync(p, data);
 const font = new Uint8Array(readFileSync('public/fonts/NotoSansTC-Regular.ttf'));
 
-// 情境 1：核心流程 — 真實案例（合約書 / 報價單 各 4 頁 Word+PDF、客戶資料 Excel 60 筆、信件、會議紀錄）
+// 情境 1：核心流程 — 真實案例（合約書 / 報價單 Word+PDF 各 3–4 頁、客戶資料 Excel 60 筆、信件、會議紀錄）
 const contractDoc = contract();
 const quotationDoc = quotation();
 const contractDocx = await renderDocx(contractDoc);
