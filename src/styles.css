@@ -299,3 +299,14 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .seo-fallback { max-width: 800px; margin: 3rem auto; padding: 0 1.5rem; line-height: 1.7; }
 .tab-link { text-decoration: none; margin-left: 0.35rem; border-color: var(--border); }
 .tab-link:hover { color: var(--primary); }
+
+/* Busy overlay while a sample or an uploaded file is being read; the app underneath is inert. */
+.busy-overlay { position: fixed; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center; background: rgba(246, 247, 249, 0.65); }
+.busy-overlay[hidden] { display: none; }
+.busy-box {
+  display: flex; align-items: center; gap: 0.7rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 0.9rem 1.3rem; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); font-size: 0.95rem;
+}
+.spinner { width: 1.2rem; height: 1.2rem; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#app[inert] .btn, #app[inert] .tab, #app[inert] .dropzone { opacity: 0.55; }

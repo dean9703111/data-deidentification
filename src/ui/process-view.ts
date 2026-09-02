@@ -7,7 +7,7 @@ import { maskDisplay } from '../core/mask';
 import { serializeMapping } from '../core/csv';
 import { getEffectivePatterns } from '../core/pattern-store';
 import { ACCEPT_ATTR, formatLimitations, generateDocument, mappingFileName, outputFileName, parseDocument } from '../formats';
-import { button, clear, downloadBlob, dropZone, el, toast } from './components';
+import { button, clear, downloadBlob, dropZone, el, toast, withBusy } from './components';
 import { renderDocumentPreview, type Decoration } from './preview';
 import { buildArchive } from '../formats/batch';
 import { SAMPLES, samplesSection } from './samples';
@@ -91,7 +91,12 @@ export function createProcessView(): HTMLElement {
 // ---------------------------------------------------------------------------------------
 // Loading
 // ---------------------------------------------------------------------------------------
-async function loadFiles(files: File[], root: HTMLElement): Promise<void> {
+/** Parsing a PDF/Word file (and loading its parser) can take a while: lock the page and show progress meanwhile. */
+function loadFiles(files: File[], root: HTMLElement): Promise<void> {
+  return withBusy('讀取檔案中…', () => importFiles(files, root));
+}
+
+async function importFiles(files: File[], root: HTMLElement): Promise<void> {
   const room = MAX_FILES - state.docs.length;
   if (files.length > room) {
     toast(`一次最多處理 ${MAX_FILES} 個檔案（目前已有 ${state.docs.length} 個，只能再加入 ${room} 個）`, 'error', 7000);
@@ -167,7 +172,7 @@ function render(root: HTMLElement): void {
         onFiles: (files) => void loadFiles(files, root),
       }),
       renderPasteBox(root),
-      samplesSection('沒有檔案？用範例體驗', SAMPLES, (file) => void loadFiles([file], root)),
+      samplesSection('沒有檔案？用範例體驗', SAMPLES, (file) => loadFiles([file], root)),
     );
     return;
   }

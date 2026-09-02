@@ -2,7 +2,7 @@ import type { LoadedDocument, MappingEntry } from '../core/types';
 import { parseMapping } from '../core/csv';
 import { restore, type RestoreResult } from '../core/restorer';
 import { ACCEPT_ATTR, generateDocument, outputFileName, parseDocument } from '../formats';
-import { button, clear, downloadBlob, dropZone, el, toast } from './components';
+import { button, clear, downloadBlob, dropZone, el, toast, withBusy } from './components';
 import { renderDocumentPreview, type Decoration } from './preview';
 import { RESTORE_SAMPLE, fetchSample, sampleUrl } from './samples';
 
@@ -28,7 +28,7 @@ function render(root: HTMLElement): void {
     el('div', { class: 'restore-inputs' },
       el('div', { class: 'restore-slot' },
         el('h3', {}, '1. 去識別化文件'),
-        state.doc ? fileChip(state.doc.fileName, () => { state.doc = null; state.result = null; render(root); }) : dropZone({ accept: ACCEPT_ATTR, label: '選擇去識別化文件', hint: '.pdf .docx .xlsx .txt .md', onFiles: (f) => void loadDoc(f[0], root) }),
+        state.doc ? fileChip(state.doc.fileName, () => { state.doc = null; state.result = null; render(root); }) : dropZone({ accept: ACCEPT_ATTR, label: '選擇去識別化文件', hint: '.pdf .docx .xlsx .txt .md', onFiles: (f) => void withBusy('讀取檔案中…', () => loadDoc(f[0], root)) }),
       ),
       el('div', { class: 'restore-slot' },
         el('h3', {}, '2. 編碼表 (CSV)'),
@@ -43,7 +43,7 @@ function render(root: HTMLElement): void {
         el('h3', {}, '用範例體驗還原'),
         el('p', { class: 'muted small' }, '範例為已去識別化的 4 頁契約書與其編碼表（虛構資料）。「載入體驗」會同時載入兩個檔案並自動還原。'),
         el('div', { class: 'sample-actions' },
-          button('載入體驗', () => void loadSamplePair(root), 'btn btn-small btn-primary'),
+          button('載入體驗', () => void withBusy('載入範例中…', () => loadSamplePair(root)), 'btn btn-small btn-primary'),
           el('a', { class: 'btn btn-small', href: sampleUrl(RESTORE_SAMPLE.doc.file), download: RESTORE_SAMPLE.doc.name }, `下載 ${RESTORE_SAMPLE.doc.name}`),
           el('a', { class: 'btn btn-small', href: sampleUrl(RESTORE_SAMPLE.csv.file), download: RESTORE_SAMPLE.csv.name }, `下載 ${RESTORE_SAMPLE.csv.name}`),
         ),

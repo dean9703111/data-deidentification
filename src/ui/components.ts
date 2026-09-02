@@ -44,6 +44,40 @@ export function toast(message: string, kind: 'info' | 'error' | 'success' = 'inf
   setTimeout(() => t.remove(), ms);
 }
 
+let busyDepth = 0;
+let busyTimer: ReturnType<typeof setTimeout> | undefined;
+let busyEl: HTMLElement | null = null;
+
+/**
+ * Runs `fn` with the app made inert (no clicks, no focus) and, once it has taken more than a
+ * blink, a full-screen "working" overlay so the user can see something is happening.
+ * Nested calls share one overlay; the outermost label is the one shown.
+ */
+export async function withBusy<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  const app = document.getElementById('app');
+  if (busyDepth++ === 0) {
+    app?.setAttribute('inert', '');
+    busyTimer = setTimeout(() => {
+      if (!busyEl) {
+        busyEl = el('div', { class: 'busy-overlay', role: 'status', 'aria-live': 'polite' },
+          el('div', { class: 'busy-box' }, el('span', { class: 'spinner' }), el('span', { class: 'busy-label' })));
+        document.body.append(busyEl);
+      }
+      busyEl.querySelector('.busy-label')!.textContent = label;
+      busyEl.hidden = false;
+    }, 150);
+  }
+  try {
+    return await fn();
+  } finally {
+    if (--busyDepth === 0) {
+      clearTimeout(busyTimer);
+      if (busyEl) busyEl.hidden = true;
+      app?.removeAttribute('inert');
+    }
+  }
+}
+
 export interface DropZoneOptions {
   accept: string;
   label: string;

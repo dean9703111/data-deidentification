@@ -1,4 +1,4 @@
-import { button, el, toast } from './components';
+import { button, el, toast, withBusy } from './components';
 
 export interface Sample {
   file: string;
@@ -34,7 +34,7 @@ export async function fetchSample(s: Pick<Sample, 'file' | 'name'>): Promise<Fil
   return new File([await res.blob()], s.name);
 }
 
-export function sampleCard(s: Sample, onLoad?: (file: File) => void): HTMLElement {
+export function sampleCard(s: Sample, onLoad?: (file: File) => void | Promise<void>): HTMLElement {
   return el(
     'div',
     { class: 'sample-card' },
@@ -45,7 +45,7 @@ export function sampleCard(s: Sample, onLoad?: (file: File) => void): HTMLElemen
     el('div', { class: 'sample-actions' },
       onLoad
         ? button('載入', () => {
-            fetchSample(s).then(onLoad).catch((e: Error) => toast(e.message, 'error'));
+            withBusy('載入範例中…', () => fetchSample(s).then((file) => onLoad(file))).catch((e: Error) => toast(e.message, 'error'));
           }, 'btn btn-small btn-primary')
         : null,
       el('a', { class: 'btn btn-small', href: sampleUrl(s.file), download: s.name }, '下載'),
@@ -53,7 +53,7 @@ export function sampleCard(s: Sample, onLoad?: (file: File) => void): HTMLElemen
   );
 }
 
-export function samplesSection(title: string, samples: Sample[], onLoad?: (file: File) => void, extra?: Node): HTMLElement {
+export function samplesSection(title: string, samples: Sample[], onLoad?: (file: File) => void | Promise<void>, extra?: Node): HTMLElement {
   return el(
     'section',
     { class: 'samples' },
