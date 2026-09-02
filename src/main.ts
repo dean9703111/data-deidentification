@@ -25,6 +25,7 @@ const TABS: { id: TabId; label: string; create: () => HTMLElement }[] = [
 
 function mount(): void {
   const app = document.getElementById('app')!;
+  app.replaceChildren(); // drop the static SEO fallback
   const nav = el('nav', { class: 'tabs' });
   const panels = el('main', { class: 'panels' });
   const views = new Map<TabId, HTMLElement>();

@@ -251,6 +251,7 @@ npm run preview      # 試跑 dist/（http://localhost:4173）
 npm run fixtures     # 重新產生 tests/fixtures 的 docx/xlsx/pdf
 npm run examples     # 重新產生 examples/
 npm run screenshots  # 重新產生 docs/screenshots/（需先 build + preview；使用本機 Chrome）
+npm run og           # 重新產生 public/og.png（社群分享圖，使用本機 Chrome）
 ```
 
 本專案以 [spec-kit](https://github.com/github/spec-kit) 的規格驅動流程開發：`specs/001-doc-deidentify/` 內有規格（spec）、研究決策（research）、實作計畫（plan）、資料模型、契約與任務清單；`.specify/memory/constitution.md` 是專案憲章（純前端零外傳、可還原、人工覆核必經、規則透明）。
@@ -281,6 +282,8 @@ public/fonts/    Noto Sans TC（PDF 輸出用）
 ## 部署
 
 `.github/workflows/deploy.yml`：push 到 `main` → `npm ci` → `npm test` → `npm run build` → 部署 `dist/` 到 GitHub Pages。Vite 設定 `base: './'`，所以在任何子路徑（如 `/data-deidentification/`）或以檔案方式開啟都能運作。
+
+SEO：`index.html` 內含 description、canonical、Open Graph／Twitter Card（`public/og.png`）、`SoftwareApplication` JSON-LD 與無 JavaScript 時的靜態說明；`public/robots.txt` 與 `sitemap.xml` 隨站台部署。
 
 ## 授權
 
