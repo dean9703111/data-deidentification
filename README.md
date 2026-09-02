@@ -4,6 +4,7 @@
 [![Live Demo](https://img.shields.io/badge/demo-GitHub%20Pages-2f6fed?logo=github)](https://deanlin.net/data-deidentification/)
 [![Tests](https://img.shields.io/badge/tests-227%20passing-2e9e5b)](#測試與品質)
 ![Client-side only](https://img.shields.io/badge/privacy-100%25%20client--side-8e44ad)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 **在瀏覽器裡完成、資料不出電腦的文件去識別化工具。** 上傳 PDF / Word / Excel / TXT / Markdown 或直接貼上文字，自動偵測中文姓名、身分證字號、手機、市話、地址、電子郵件、公司名稱、統一編號與自訂識別碼；以符合原始格式的方式預覽、人工覆核後，下載去識別化文件與 CSV 編碼對照表，日後可憑編碼表完整還原。
 
@@ -32,12 +33,13 @@
 - [支援格式與限制](#支援格式與限制)
 - [偵測規則](#偵測規則)
 - [輸出格式：標記與編碼表](#輸出格式標記與編碼表)
-- [範例測試檔](#範例測試檔)
+- [範例檔下載與體驗](#範例檔下載與體驗)
 - [開發](#開發)
 - [測試與品質](#測試與品質)
 - [專案結構](#專案結構)
 - [部署](#部署)
 - [授權](#授權)
+- [關於作者](#關於作者)
 
 ---
 
@@ -76,7 +78,7 @@
 
 ## 快速開始
 
-**直接使用**：開啟 <https://deanlin.net/data-deidentification/>，拖入檔案即可。
+**直接使用**：開啟 <https://deanlin.net/data-deidentification/>，拖入檔案即可；沒有檔案的話，頁面下方有「用範例體驗」，一鍵載入 Word／PDF／Excel／TXT 範例（見[範例檔下載與體驗](#範例檔下載與體驗)）。
 
 **本機執行**：
 
@@ -219,12 +221,22 @@ PDF 依原始座標逐頁排版（下圖 1 頁碼、2 頁面），表格與版�
 
 - 還原時以 `code` 查表；文件中查無的編碼保留原標記並列出警告。格式契約見 `specs/001-doc-deidentify/contracts/`。
 
-## 範例測試檔
+## 範例檔下載與體驗
 
-`examples/` 提供每個驗證情境的範例（全部為虛構資料，由固定種子的假資料產生器生成；`npm run examples` 可重新產生），說明見 [examples/README.md](examples/README.md)：
+想先試試看？直接下載下面的範例（全部為程式產生的**虛構資料**，姓名、公司、地址、電話、證號均非真人），或在網頁的「沒有檔案？用範例體驗」區塊按「載入體驗」一鍵送進處理：
 
-- **核心流程**：4 頁**委外服務契約書**與 4 頁**報價單**（各有 Word 與 PDF 版本，含頁首頁尾、表格、簽署頁）、**客戶資料** Excel（60 筆客戶＋聯絡紀錄＋業務窗口三個工作表）、客服信件、專案會議紀錄。
-- **人工調整**（含誤判與漏抓）、**還原**（Word 與純文字的成對檔案、缺列／格式錯誤／編碼重複的 CSV）、**自訂規則**、**格式與邊界**（無文字層 PDF、不支援格式、原文含標記樣式、超大檔）。
+| 範例 | 格式 | 內容 | 下載 |
+|------|------|------|------|
+| 委外服務契約書 | Word | 4 頁契約：立契約書人、十二條條款、附件表格、簽署頁（含頁首頁尾） | [contract.docx](https://deanlin.net/data-deidentification/samples/contract.docx) |
+| 委外服務契約書 | PDF | 同一份契約的 PDF 版本 | [contract.pdf](https://deanlin.net/data-deidentification/samples/contract.pdf) |
+| 報價單 | Word | 4 頁報價單：客戶資料、20 項明細（跨頁表格）、聯絡窗口、簽回頁 | [quotation.docx](https://deanlin.net/data-deidentification/samples/quotation.docx) |
+| 報價單 | PDF | 同一份報價單的 PDF 版本 | [quotation.pdf](https://deanlin.net/data-deidentification/samples/quotation.pdf) |
+| 客戶資料 | Excel | 60 筆客戶＋聯絡紀錄 30 筆＋業務窗口，三個工作表 | [customers.xlsx](https://deanlin.net/data-deidentification/samples/customers.xlsx) |
+| 客服信件 | TXT | 客服回覆信與引用的原始來信 | [support-email.txt](https://deanlin.net/data-deidentification/samples/support-email.txt) |
+| 專案會議紀錄 | Markdown | 出席者、決議表格、待辦清單 | [meeting-notes.md](https://deanlin.net/data-deidentification/samples/meeting-notes.md) |
+| 還原體驗 | Word + CSV | 已去識別化的契約書與其編碼表（在「還原」頁籤載入） | [contract.deid.docx](https://deanlin.net/data-deidentification/samples/contract.deid.docx)、[contract.mapping.csv](https://deanlin.net/data-deidentification/samples/contract.mapping.csv) |
+
+更多情境（人工調整、錯誤 CSV、自訂規則、格式邊界）的範例在 `examples/`，說明見 [examples/README.md](examples/README.md)；`npm run examples` 可重新產生全部範例。
 
 ## 開發
 
@@ -273,4 +285,19 @@ public/fonts/    Noto Sans TC（PDF 輸出用）
 ## 授權
 
 - 字型 `public/fonts/NotoSansTC-Regular.ttf`：Noto Sans TC，© Google，[SIL Open Font License 1.1](https://openfontlicense.org/)。PDF 輸出時以自製的「稀疏子集」只內嵌用到的字形（`src/formats/ttf-subset.ts`，保留原始 glyph ID）；不使用 pdf-lib 內建 subset，因其對大型 CJK 字型的輸出在 macOS 預覽程式會顯示亂碼。
+- 本專案以 [MIT License](LICENSE) 授權。
 - 範例文件中的人名、公司、地址、電話、證號皆為程式產生的虛構資料。
+
+## 關於作者
+
+Dean Lin — 歡迎追蹤與交流：
+
+| 平台 | 連結 |
+|------|------|
+| Medium | <https://medium.com/@dean-lin> |
+| Facebook | <https://www.facebook.com/deanlinbao> |
+| Threads | <https://www.threads.com/@deanlin5288> |
+| YouTube | <https://www.youtube.com/@dlcorner> |
+| GitHub | <https://github.com/dean9703111> |
+
+如果這個工具對你有幫助，歡迎給個 ⭐，或在社群上分享使用心得。
