@@ -1,13 +1,13 @@
 # 文件去識別化工具
 
 [![CI & Deploy](https://github.com/dean9703111/data-deidentification/actions/workflows/deploy.yml/badge.svg)](https://github.com/dean9703111/data-deidentification/actions/workflows/deploy.yml)
-[![Live Demo](https://img.shields.io/badge/demo-GitHub%20Pages-2f6fed?logo=github)](https://dean9703111.github.io/data-deidentification/)
+[![Live Demo](https://img.shields.io/badge/demo-GitHub%20Pages-2f6fed?logo=github)](https://deanlin.net/data-deidentification/)
 [![Tests](https://img.shields.io/badge/tests-227%20passing-2e9e5b)](#測試與品質)
 ![Client-side only](https://img.shields.io/badge/privacy-100%25%20client--side-8e44ad)
 
 **在瀏覽器裡完成、資料不出電腦的文件去識別化工具。** 上傳 PDF / Word / Excel / TXT / Markdown 或直接貼上文字，自動偵測中文姓名、身分證字號、手機、市話、地址、電子郵件、公司名稱、統一編號與自訂識別碼；以符合原始格式的方式預覽、人工覆核後，下載去識別化文件與 CSV 編碼對照表，日後可憑編碼表完整還原。
 
-🔗 **線上使用：<https://dean9703111.github.io/data-deidentification/>**
+🔗 **線上使用：<https://deanlin.net/data-deidentification/>**
 
 <p align="center">
   <img src="docs/screenshots/02-preview.png" alt="去識別化預覽：Word 合約書以頁面方式呈現，敏感資訊以遮罩顯示" width="880">
@@ -76,7 +76,7 @@
 
 ## 快速開始
 
-**直接使用**：開啟 <https://dean9703111.github.io/data-deidentification/>，拖入檔案即可。
+**直接使用**：開啟 <https://deanlin.net/data-deidentification/>，拖入檔案即可。
 
 **本機執行**：
 
