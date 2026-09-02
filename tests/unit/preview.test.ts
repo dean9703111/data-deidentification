@@ -429,4 +429,27 @@ describe('renderDocumentPreview — re-render', () => {
     renderDocumentPreview(container, doc, []);
     expect(container.querySelectorAll('.doc-page')).toHaveLength(1);
   });
+
+  it('keeps the active sheet when an xlsx layout is re-rendered into the same container', () => {
+    const container = document.createElement('div');
+    const layout: DocLayout = {
+      kind: 'xlsx',
+      sheets: [
+        { name: 'A', cells: [{ start: 0, end: 2, row: 1, col: 1 }] },
+        { name: 'B', cells: [{ start: 2, end: 4, row: 1, col: 1 }] },
+      ],
+    };
+    const doc = makeDoc('AASS', layout);
+
+    renderDocumentPreview(container, doc, []);
+    (container.querySelectorAll('.sheet-tab')[1] as HTMLButtonElement).click();
+    expect(container.textContent).toContain('SS');
+
+    renderDocumentPreview(container, doc, []);
+
+    const tabs = container.querySelectorAll('.sheet-tab');
+    expect(tabs[1].classList.contains('active')).toBe(true);
+    expect(container.textContent).toContain('SS');
+    expect(container.textContent).not.toContain('AA');
+  });
 });

@@ -114,6 +114,13 @@ function paragraphEl(p: DocxParagraphLayout, text: string, decos: Decoration[]):
 // ---------------------------------------------------------------------------------------
 const MAX_ROWS = 1000;
 
+/** Which sheet the grid shows and how far it is scrolled, carried over when the preview is re-rendered. */
+interface GridView {
+  sheet: number;
+  top: number;
+  left: number;
+}
+
 function colName(i: number): string {
   let s = '';
   while (i > 0) {
@@ -124,8 +131,8 @@ function colName(i: number): string {
   return s;
 }
 
-function renderXlsx(container: HTMLElement, doc: LoadedDocument, decos: Decoration[], sheets: { name: string; cells: { start: number; end: number; row: number; col: number }[] }[]): void {
-  const state = { active: 0 };
+function renderXlsx(container: HTMLElement, doc: LoadedDocument, decos: Decoration[], sheets: { name: string; cells: { start: number; end: number; row: number; col: number }[] }[], view?: GridView): void {
+  const state = { active: view?.sheet ?? 0 };
   const tabs = el('div', { class: 'sheet-tabs' });
   const host = el('div', { class: 'sheet-host' });
   const draw = () => {
@@ -155,7 +162,7 @@ function renderXlsx(container: HTMLElement, doc: LoadedDocument, decos: Decorati
       }
       table.append(tr);
     }
-    host.append(el('div', { class: 'sheet-scroll' }, table));
+    host.append(el('div', { class: 'sheet-scroll', 'data-sheet': String(state.active) }, table));
     if (maxRow > MAX_ROWS) host.append(el('p', { class: 'muted small' }, `僅顯示前 ${MAX_ROWS} 列（共 ${maxRow} 列）；未顯示的列仍會被處理。`));
   };
   sheets.forEach((s, i) => {
@@ -163,6 +170,11 @@ function renderXlsx(container: HTMLElement, doc: LoadedDocument, decos: Decorati
   });
   container.append(tabs, host);
   draw();
+  if (view) {
+    const grid = host.querySelector<HTMLElement>('.sheet-scroll')!;
+    grid.scrollTop = view.top;
+    grid.scrollLeft = view.left;
+  }
 }
 
 // ---------------------------------------------------------------------------------------
@@ -174,7 +186,9 @@ function renderPdf(container: HTMLElement, doc: LoadedDocument, decos: Decoratio
     const page = el('div', { class: 'pdf-page' });
     page.style.setProperty('--w', String(pg.width));
     page.style.setProperty('--h', String(pg.height));
-    page.style.height = `calc(var(--s) * ${pg.height}px)`;
+    // Height from the aspect ratio rather than from --s, so the page is already full-size when fit()
+    // first measures; an empty-looking scroll container would snap its (and the window's) scroll to 0.
+    page.style.aspectRatio = `${pg.width} / ${pg.height}`;
     for (const it of pg.items) {
       const span = el('span', { class: 'pdf-item', 'data-w': String(it.width) });
       span.style.left = `calc(var(--s) * ${it.x}px)`;
@@ -206,6 +220,9 @@ function renderPdf(container: HTMLElement, doc: LoadedDocument, decos: Decoratio
 }
 
 export function renderDocumentPreview(container: HTMLElement, doc: LoadedDocument, decorations: Decoration[], opts: PreviewOptions = {}): void {
+  // A re-render (after adding or cancelling an item) rebuilds the Excel grid; keep the user's sheet and scroll position.
+  const grid = container.querySelector<HTMLElement>('.sheet-scroll');
+  const view: GridView | undefined = grid ? { sheet: Number(grid.dataset.sheet), top: grid.scrollTop, left: grid.scrollLeft } : undefined;
   clear(container);
   const decos = [...decorations].sort((a, b) => a.start - b.start);
   const layout = opts.plain ? undefined : doc.layout;
@@ -215,7 +232,7 @@ export function renderDocumentPreview(container: HTMLElement, doc: LoadedDocumen
     case 'docx':
       return renderDocx(container, doc, decos, layout.paragraphs);
     case 'xlsx':
-      return renderXlsx(container, doc, decos, layout.sheets);
+      return renderXlsx(container, doc, decos, layout.sheets, view);
     case 'pdf':
       return renderPdf(container, doc, decos, layout.pages);
   }
