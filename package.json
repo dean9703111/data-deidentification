@@ -1,0 +1,31 @@
+{
+  "name": "data-deidentification",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "fixtures": "tsx scripts/make-fixtures.ts",
+    "examples": "tsx scripts/make-examples.ts",
+    "screenshots": "tsx scripts/make-screenshots.ts"
+  },
+  "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
+    "jszip": "^3.10.1",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.10.38"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "jsdom": "^29.1.1",
+    "puppeteer-core": "^25.9.0",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
+  }
+}
