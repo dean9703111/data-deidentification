@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { detect, addManualItem, toggleItem, OverlapError } from '../../src/core/detector';
 import { applyRedactions } from '../../src/core/redactor';
+import { CodeBook, parseMarkers } from '../../src/core/codes';
 import type { Category, Pattern, RedactionItem } from '../../src/core/types';
 
 /** Build a minimal custom Pattern for deterministic tests. */
@@ -93,20 +94,23 @@ describe('detect', () => {
     expect(new Set(codes).size).toBe(codes.length);
   });
 
-  it('respects a pre-filled `used` set: new codes are not in it and get added to it', () => {
-    const text = 'AAA BBB CCC';
+  it('gives repeated values one shared code and distinct values distinct codes', () => {
+    const text = 'AAA BBB AAA CCC BBB';
     const patterns = [mkPattern({ id: 'word', regex: '[A-Z]{3}' })];
-    const used = new Set<string>(['aaaaaa', 'bbbbbb']);
-    const originalSize = used.size;
-    const items = detect(text, patterns, used);
-    expect(items.length).toBe(3);
-    for (const it of items) {
-      expect(used.has('aaaaaa') && it.code === 'aaaaaa').toBe(false);
-      expect(it.code).not.toBe('aaaaaa');
-      expect(it.code).not.toBe('bbbbbb');
-      expect(used.has(it.code)).toBe(true);
-    }
-    expect(used.size).toBe(originalSize + items.length);
+    const items = detect(text, patterns);
+    expect(items.map((i) => i.original)).toEqual(['AAA', 'BBB', 'AAA', 'CCC', 'BBB']);
+    expect(items[0].code).toBe(items[2].code);
+    expect(items[1].code).toBe(items[4].code);
+    expect(new Set(items.map((i) => i.code)).size).toBe(3);
+  });
+
+  it('keeps codes stable across detect calls that share one CodeBook', () => {
+    const text = 'AAA BBB';
+    const patterns = [mkPattern({ id: 'word', regex: '[A-Z]{3}' })];
+    const book = new CodeBook();
+    const first = detect(text, patterns, book).map((i) => i.code);
+    const second = detect(text, patterns, book).map((i) => i.code);
+    expect(second).toEqual(first);
   });
 
   it('validate function filters out non-matching candidates', () => {
@@ -140,66 +144,86 @@ describe('addManualItem', () => {
   it('adds an item with origin manual, unique code, active true, mutates array in place, stays sorted', () => {
     const text = '0123456789';
     const items: RedactionItem[] = [];
-    const used = new Set<string>();
-    const returned = addManualItem(items, text, 5, 8, '手機', used);
+    const book = new CodeBook();
+    const returned = addManualItem(items, text, 5, 8, '手機', book);
 
     expect(returned.origin).toBe('manual');
     expect(returned.active).toBe(true);
     expect(returned.category).toBe('手機');
     expect(returned.original).toBe('567');
     expect(returned.code).toMatch(/^[0-9a-f]{6}$/);
-    expect(used.has(returned.code)).toBe(true);
+    expect(book.codeFor('手機', '567')).toBe(returned.code);
 
     // same array instance mutated in place
     expect(items).toHaveLength(1);
     expect(items[0]).toBe(returned);
 
     // add an earlier item and confirm sort order by start is maintained
-    const second = addManualItem(items, text, 0, 2, '姓名', used);
+    const second = addManualItem(items, text, 0, 2, '姓名', book);
     expect(items).toHaveLength(2);
     expect(items[0]).toBe(second);
     expect(items[1]).toBe(returned);
     expect(items.map((i) => i.start)).toEqual([0, 5]);
   });
 
+  it('reuses the code of an existing item with the same category and text', () => {
+    const text = '王小明 與 王小明';
+    const patterns = [mkPattern({ id: 'name', regex: '王小明', category: '姓名' })];
+    const book = new CodeBook();
+    const items = detect(text, patterns, book);
+    expect(items).toHaveLength(2);
+    items[1].active = false;
+    const manual = addManualItem(items, text, 6, 9, '姓名', book);
+    expect(manual.origin).toBe('manual');
+    expect(manual.code).toBe(items[0].code);
+  });
+
+  it('gives the same text a different code under a different category', () => {
+    const text = 'ABC ABC';
+    const items: RedactionItem[] = [];
+    const book = new CodeBook();
+    const a = addManualItem(items, text, 0, 3, '姓名', book);
+    const b = addManualItem(items, text, 4, 7, '公司', book);
+    expect(a.code).not.toBe(b.code);
+  });
   it('throws OverlapError when overlapping an existing active item', () => {
     const text = '0123456789';
     const items: RedactionItem[] = [];
-    const used = new Set<string>();
-    addManualItem(items, text, 2, 6, '手機', used);
-    expect(() => addManualItem(items, text, 4, 8, '姓名', used)).toThrow(OverlapError);
+    const book = new CodeBook();
+    addManualItem(items, text, 2, 6, '手機', book);
+    expect(() => addManualItem(items, text, 4, 8, '姓名', book)).toThrow(OverlapError);
   });
 
   it('allows overlap with an inactive (cancelled) item', () => {
     const text = '0123456789';
     const items: RedactionItem[] = [];
-    const used = new Set<string>();
-    const first = addManualItem(items, text, 2, 6, '手機', used);
+    const book = new CodeBook();
+    const first = addManualItem(items, text, 2, 6, '手機', book);
     toggleItem(items, first.id); // deactivate
-    expect(() => addManualItem(items, text, 4, 8, '姓名', used)).not.toThrow();
+    expect(() => addManualItem(items, text, 4, 8, '姓名', book)).not.toThrow();
     expect(items).toHaveLength(2);
   });
 
   it('throws on invalid range: start >= end', () => {
     const text = '0123456789';
     const items: RedactionItem[] = [];
-    const used = new Set<string>();
-    expect(() => addManualItem(items, text, 5, 5, '姓名', used)).toThrow();
-    expect(() => addManualItem(items, text, 6, 5, '姓名', used)).toThrow();
+    const book = new CodeBook();
+    expect(() => addManualItem(items, text, 5, 5, '姓名', book)).toThrow();
+    expect(() => addManualItem(items, text, 6, 5, '姓名', book)).toThrow();
   });
 
   it('throws on invalid range: end beyond text length', () => {
     const text = '0123456789';
     const items: RedactionItem[] = [];
-    const used = new Set<string>();
-    expect(() => addManualItem(items, text, 5, text.length + 1, '姓名', used)).toThrow();
+    const book = new CodeBook();
+    expect(() => addManualItem(items, text, 5, text.length + 1, '姓名', book)).toThrow();
   });
 
   it('throws on invalid range: negative start', () => {
     const text = '0123456789';
     const items: RedactionItem[] = [];
-    const used = new Set<string>();
-    expect(() => addManualItem(items, text, -1, 3, '姓名', used)).toThrow();
+    const book = new CodeBook();
+    expect(() => addManualItem(items, text, -1, 3, '姓名', book)).toThrow();
   });
 });
 
@@ -207,8 +231,8 @@ describe('toggleItem', () => {
   it('flips active and returns the item; unknown id returns undefined', () => {
     const text = '0123456789';
     const items: RedactionItem[] = [];
-    const used = new Set<string>();
-    const item = addManualItem(items, text, 0, 3, '姓名', used);
+    const book = new CodeBook();
+    const item = addManualItem(items, text, 0, 3, '姓名', book);
     expect(item.active).toBe(true);
 
     const toggled = toggleItem(items, item.id);
@@ -224,10 +248,10 @@ describe('toggleItem', () => {
   it('throws OverlapError when re-activating an item that would now overlap an active one', () => {
     const text = '0123456789';
     const items: RedactionItem[] = [];
-    const used = new Set<string>();
-    const itemA = addManualItem(items, text, 0, 5, '姓名', used);
+    const book = new CodeBook();
+    const itemA = addManualItem(items, text, 0, 5, '姓名', book);
     toggleItem(items, itemA.id); // deactivate A
-    const itemB = addManualItem(items, text, 2, 7, '手機', used); // overlaps A's range, allowed since A inactive
+    const itemB = addManualItem(items, text, 2, 7, '手機', book); // overlaps A's range, allowed since A inactive
 
     expect(() => toggleItem(items, itemA.id)).toThrow(OverlapError);
     // A should remain inactive since the toggle threw before mutating (per current impl the check
@@ -238,12 +262,25 @@ describe('toggleItem', () => {
 });
 
 describe('integration with applyRedactions', () => {
+  it('lists each shared code once in the mapping, ordered by first occurrence', () => {
+    const text = 'BBB AAA BBB CCC AAA';
+    const patterns = [mkPattern({ id: 'word', regex: '[A-Z]{3}' })];
+    const items = detect(text, patterns);
+    const { redactedText, mapping } = applyRedactions(text, items);
+
+    expect(mapping.map((m) => m.original)).toEqual(['BBB', 'AAA', 'CCC']);
+    expect(new Set(mapping.map((m) => m.code)).size).toBe(3);
+
+    const byCode = new Map(mapping.map((m) => [m.code, m.original]));
+    expect(parseMarkers(redactedText).map((m) => byCode.get(m.code))).toEqual(['BBB', 'AAA', 'BBB', 'CCC', 'AAA']);
+  });
+
   it('replaces active items with markers, excludes inactive items from mapping, and keeps mapping ordered by start', () => {
     const text = '甲乙丙丁A123456789戊己庚辛someone@example.com';
     const items: RedactionItem[] = [];
-    const used = new Set<string>();
+    const book = new CodeBook();
 
-    const idItem = addManualItem(items, text, 4, 14, '身分證', used); // A123456789
+    const idItem = addManualItem(items, text, 4, 14, '身分證', book); // A123456789
     const emailStart = text.indexOf('someone@example.com');
     const emailItem = addManualItem(
       items,
@@ -251,7 +288,7 @@ describe('integration with applyRedactions', () => {
       emailStart,
       emailStart + 'someone@example.com'.length,
       '電子郵件',
-      used,
+      book,
     );
 
     // toggle the id item off

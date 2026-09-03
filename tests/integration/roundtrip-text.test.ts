@@ -28,7 +28,7 @@ describe.each(FIXTURES)('roundtrip for $label', ({ path }) => {
   // third occurrence of 王小明 in sample.txt ("王小明另提供緊急聯絡人...") is never
   // detected. That leaves this original's third occurrence un-redacted, failing this
   // assertion. Left in place per instructions rather than weakened to match the bug.
-  it('removes every active original from the redacted text and leaves exactly mapping.length markers', () => {
+  it('removes every active original from the redacted text and leaves one marker per active item', () => {
     const items = detect(original, BUILTIN_PATTERNS);
     const { redactedText, mapping } = applyRedactions(original, items);
 
@@ -38,7 +38,8 @@ describe.each(FIXTURES)('roundtrip for $label', ({ path }) => {
     }
 
     const markers = parseMarkers(redactedText);
-    expect(markers.length).toBe(mapping.length);
+    expect(markers.length).toBe(items.filter((i) => i.active).length);
+    expect(new Set(markers.map((m) => m.code)).size).toBe(mapping.length);
   });
 
   it('generates unique codes (SC-004) with a 1:1 code set between markers and mapping', () => {
@@ -63,7 +64,7 @@ describe.each(FIXTURES)('roundtrip for $label', ({ path }) => {
     const result = restore(redactedText, entries);
     expect(result.restoredText).toBe(original);
     expect(result.missingCodes).toEqual([]);
-    expect(result.restoredCount).toBe(mapping.length);
+    expect(result.restoredCount).toBe(items.filter((i) => i.active).length);
   });
 });
 
@@ -72,14 +73,16 @@ describe('sample.txt specifics', () => {
 
   // KNOWN SRC BUG (see final report): only 2 of the 3 raw occurrences of 王小明 are
   // detected because "王小明另提供..." is missed by the zh-name NAME_FOLLOW heuristic.
-  it('gives repeated occurrences of 王小明 distinct codes (FR-018)', () => {
+  it('gives repeated occurrences of 王小明 one shared code and a single mapping row', () => {
     const items = detect(original, BUILTIN_PATTERNS);
-    const { mapping } = applyRedactions(original, items);
+    const wangItems = items.filter((i) => i.original === '王小明');
+    expect(wangItems.length).toBe(3);
+    expect(new Set(wangItems.map((i) => i.code)).size).toBe(1);
 
+    const { mapping } = applyRedactions(original, items);
     const wangEntries = mapping.filter((m) => m.original === '王小明');
-    expect(wangEntries.length).toBe(3);
-    const codes = new Set(wangEntries.map((e) => e.code));
-    expect(codes.size).toBe(3);
+    expect(wangEntries.length).toBe(1);
+    expect(wangEntries[0].code).toBe(wangItems[0].code);
   });
 
   it('covers every expected category', () => {
@@ -123,14 +126,19 @@ describe('sample.txt specifics', () => {
     }
   });
 
-  it('leaves a cancelled items original in place and excludes its code from the mapping, while still round-tripping', () => {
+  it('leaves a cancelled items original in place; its code stays in the mapping only while another active item shares it', () => {
     const items = detect(original, BUILTIN_PATTERNS);
-    expect(items.length).toBeGreaterThan(0);
-    items[0].active = false;
+    const wang = items.filter((i) => i.original === '王小明');
+    expect(wang.length).toBe(3);
+    const unique = items.find((i) => items.filter((o) => o.code === i.code).length === 1)!;
+    wang[0].active = false;
+    unique.active = false;
 
     const { redactedText, mapping } = applyRedactions(original, items);
-    expect(redactedText.includes(items[0].original)).toBe(true);
-    expect(mapping.some((m) => m.code === items[0].code)).toBe(false);
+    expect(redactedText.includes(unique.original)).toBe(true);
+    expect(mapping.some((m) => m.code === unique.code)).toBe(false);
+    // The other two 王小明 occurrences are still redacted, so their shared code must stay restorable.
+    expect(mapping.some((m) => m.code === wang[0].code)).toBe(true);
 
     const csv = serializeMapping(mapping);
     const { entries, errors } = parseMapping(csv);

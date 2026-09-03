@@ -51,7 +51,7 @@ export async function buildArchive(entries: BatchEntry[]): Promise<{ blob: Blob;
     const mappingName = unique(mappingFileName(doc.fileName));
     zip.file(output, await generateDocument(doc, edits));
     zip.file(mappingName, serializeMapping(mapping));
-    manifest.push({ source: doc.fileName, output, mapping: mappingName, count: mapping.length });
+    manifest.push({ source: doc.fileName, output, mapping: mappingName, count: edits.length });
   }
   zip.file('清單.csv', manifestCsv(manifest));
   const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });

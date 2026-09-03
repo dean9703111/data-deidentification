@@ -146,7 +146,7 @@ describe('buildArchive', () => {
       const mappingText = await zip.file(row.mapping)!.async('string');
       const { entries: mappingEntries, errors } = parseMapping(mappingText);
       expect(errors).toEqual([]);
-      expect(mappingEntries.length).toBe(row.count);
+      expect(mappingEntries.length).toBe(new Set(activeItems.map((it) => it.code)).size);
 
       const outBytes = await zip.file(row.output)!.async('uint8array');
       let outText: string;

@@ -1,5 +1,5 @@
 import type { Category, Pattern, RedactionItem } from './types';
-import { generateCode } from './codes';
+import { CodeBook } from './codes';
 
 let nextId = 1;
 function newId(): string {
@@ -30,7 +30,7 @@ function resolveOverlaps(cands: Candidate[]): Candidate[] {
   return chosen.sort((a, b) => a.start - b.start);
 }
 
-export function detect(text: string, patterns: Pattern[], used: Set<string> = new Set()): RedactionItem[] {
+export function detect(text: string, patterns: Pattern[], book: CodeBook = new CodeBook()): RedactionItem[] {
   const cands: Candidate[] = [];
   for (const p of patterns) {
     if (!p.enabled) continue;
@@ -46,16 +46,19 @@ export function detect(text: string, patterns: Pattern[], used: Set<string> = ne
       cands.push({ category: p.category, start: m.index, end: m.index + m[0].length });
     }
   }
-  return resolveOverlaps(cands).map((c) => ({
-    id: newId(),
-    category: c.category,
-    original: text.slice(c.start, c.end),
-    start: c.start,
-    end: c.end,
-    code: generateCode(used),
-    origin: 'auto',
-    active: true,
-  }));
+  return resolveOverlaps(cands).map((c) => {
+    const original = text.slice(c.start, c.end);
+    return {
+      id: newId(),
+      category: c.category,
+      original,
+      start: c.start,
+      end: c.end,
+      code: book.codeFor(c.category, original),
+      origin: 'auto' as const,
+      active: true,
+    };
+  });
 }
 
 export class OverlapError extends Error {
@@ -70,18 +73,19 @@ export function addManualItem(
   start: number,
   end: number,
   category: Category,
-  used: Set<string>,
+  book: CodeBook,
 ): RedactionItem {
   if (start < 0 || end > text.length || start >= end) throw new Error('選取範圍無效');
   const overlaps = items.some((it) => it.active && start < it.end && end > it.start);
   if (overlaps) throw new OverlapError();
+  const original = text.slice(start, end);
   const item: RedactionItem = {
     id: newId(),
     category,
-    original: text.slice(start, end),
+    original,
     start,
     end,
-    code: generateCode(used),
+    code: book.codeFor(category, original),
     origin: 'manual',
     active: true,
   };

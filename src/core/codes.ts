@@ -15,6 +15,25 @@ export function generateCode(used: Set<string>): string {
   throw new Error('無法產生不重複的編碼');
 }
 
+/**
+ * Per-document code assignment. The same (category, original) pair always yields the same
+ * code, whether it comes from auto-detection or a manual selection; different pairs never share.
+ */
+export class CodeBook {
+  private readonly used = new Set<string>();
+  private readonly byValue = new Map<string, string>();
+
+  codeFor(category: string, original: string): string {
+    const key = `${category}:${original}`; // category names never contain ':'
+    let code = this.byValue.get(key);
+    if (code === undefined) {
+      code = generateCode(this.used);
+      this.byValue.set(key, code);
+    }
+    return code;
+  }
+}
+
 export function buildMarker(category: string, code: string): string {
   return `[${category}:${code}]`;
 }

@@ -40,7 +40,7 @@ describe('xlsx round trip', () => {
     expect(doc.text).toContain('同上\n\n承辦社工');
   });
 
-  it('redacts every active item, regenerates the xlsx, and gives each shared-string 王小明 cell its own code', async () => {
+  it('redacts every active item, regenerates the xlsx, and gives both shared-string 王小明 cells one code', async () => {
     const bytes = await buildXlsx(SAMPLE_XLSX_SPEC);
     const file = toXlsxFile(bytes, 'sample.xlsx');
     const originalDoc = await parseXlsx(file);
@@ -60,11 +60,12 @@ describe('xlsx round trip', () => {
     }
     expect(newDoc.text).not.toContain('A123456789');
 
-    // 王小明 appears in two cells that share ONE sharedStrings entry in the input, but
-    // each occurrence is a separate detected item and must get its own code.
-    const wangEntries = mapping.filter((m) => m.original === '王小明');
-    expect(wangEntries.length).toBe(2);
-    expect(wangEntries[0].code).not.toBe(wangEntries[1].code);
+    // 王小明 appears in two cells that share ONE sharedStrings entry in the input. Each cell is
+    // a separate detected item, but the same value shares one code, so the mapping lists it once.
+    const wangItems = items.filter((i) => i.original === '王小明');
+    expect(wangItems.length).toBe(2);
+    expect(wangItems[0].code).toBe(wangItems[1].code);
+    expect(mapping.filter((m) => m.original === '王小明')).toHaveLength(1);
   });
 
   it('preserves styles.xml, scrubs orphaned shared strings, and rewrites only changed cells as inline strings', async () => {

@@ -121,7 +121,7 @@ describe('realistic contract (docx)', () => {
     expect(newDoc.text).not.toMatch(ID_RE);
 
     const markers = parseMarkers(newDoc.text);
-    expect(markers.length).toBe(mapping.length);
+    expect(markers.length).toBe(items.filter((i) => i.active).length);
 
     const restored = restore(newDoc.text, mapping);
     expect(restored.missingCodes).toEqual([]);
@@ -187,7 +187,7 @@ describe('realistic contract (pdf)', () => {
     }
 
     const markers = parseMarkers(newDoc.text);
-    expect(markers.length).toBe(mapping.length);
+    expect(markers.length).toBe(items.filter((i) => i.active).length);
 
     const raw = Buffer.from(outBytes).toString('latin1');
     expect(raw).not.toMatch(ID_RE);
@@ -218,7 +218,7 @@ describe('realistic quotation (docx)', () => {
       expect(newDoc.text.includes(item.original)).toBe(false);
     }
     const markers = parseMarkers(newDoc.text);
-    expect(markers.length).toBe(mapping.length);
+    expect(markers.length).toBe(items.filter((i) => i.active).length);
 
     const restored = restore(newDoc.text, mapping);
     expect(restored.missingCodes).toEqual([]);
@@ -253,7 +253,7 @@ describe('realistic quotation (pdf)', () => {
       expect(newDoc.text.includes(item.original)).toBe(false);
     }
     const markers = parseMarkers(newDoc.text);
-    expect(markers.length).toBe(mapping.length);
+    expect(markers.length).toBe(items.filter((i) => i.active).length);
 
     const restored = restore(newDoc.text, mapping);
     expect(restored.missingCodes).toEqual([]);
@@ -292,7 +292,7 @@ describe('realistic customers workbook (xlsx)', () => {
       expect(newDoc.text.includes(item.original)).toBe(false);
     }
     const markers = parseMarkers(newDoc.text);
-    expect(markers.length).toBe(mapping.length);
+    expect(markers.length).toBe(items.filter((i) => i.active).length);
 
     const newZip = await JSZip.loadAsync(outBytes);
     const sst = await newZip.file('xl/sharedStrings.xml')!.async('string');

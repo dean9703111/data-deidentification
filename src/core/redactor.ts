@@ -28,9 +28,13 @@ export function applyEdits(text: string, edits: TextEdit[]): string {
 
 export function applyRedactions(text: string, items: RedactionItem[]): RedactionResult {
   const edits = buildEdits(items);
-  const mapping: MappingEntry[] = items
-    .filter((it) => it.active)
-    .sort((a, b) => a.start - b.start)
-    .map((it) => ({ code: it.code, category: it.category, original: it.original }));
+  // One row per code, ordered by first occurrence: repeated values share a code (see CodeBook).
+  const mapping: MappingEntry[] = [];
+  const seen = new Set<string>();
+  for (const it of [...items].filter((it) => it.active).sort((a, b) => a.start - b.start)) {
+    if (seen.has(it.code)) continue;
+    seen.add(it.code);
+    mapping.push({ code: it.code, category: it.category, original: it.original });
+  }
   return { redactedText: applyEdits(text, edits), edits, mapping };
 }

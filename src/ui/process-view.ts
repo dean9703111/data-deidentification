@@ -2,7 +2,7 @@ import type { Category, LoadedDocument, RedactionItem } from '../core/types';
 import { CATEGORIES } from '../core/types';
 import { addManualItem, detect, toggleItem } from '../core/detector';
 import { applyRedactions } from '../core/redactor';
-import { buildMarker, parseMarkers } from '../core/codes';
+import { CodeBook, buildMarker, parseMarkers } from '../core/codes';
 import { maskDisplay } from '../core/mask';
 import { serializeMapping } from '../core/csv';
 import { getEffectivePatterns } from '../core/pattern-store';
@@ -18,7 +18,7 @@ export const MAX_FILES = 10;
 interface DocState {
   doc: LoadedDocument;
   items: RedactionItem[];
-  used: Set<string>;
+  book: CodeBook;
   downloadedDoc: boolean;
   downloadedCsv: boolean;
 }
@@ -108,8 +108,8 @@ async function importFiles(files: File[], root: HTMLElement): Promise<void> {
   for (const file of files) {
     try {
       const doc = await parseDocument(file);
-      const used = new Set<string>();
-      const d: DocState = { doc, items: detect(doc.text, getEffectivePatterns(), used), used, downloadedDoc: false, downloadedCsv: false };
+      const book = new CodeBook();
+      const d: DocState = { doc, items: detect(doc.text, getEffectivePatterns(), book), book, downloadedDoc: false, downloadedCsv: false };
       applyDisabledCategories(d);
       state.docs.push(d);
       if (firstNew < 0) firstNew = state.docs.length - 1;
@@ -132,7 +132,7 @@ async function importFiles(files: File[], root: HTMLElement): Promise<void> {
 function redetect(root: HTMLElement): void {
   const d = current();
   const manual = d.items.filter((it) => it.origin === 'manual');
-  const fresh = detect(d.doc.text, getEffectivePatterns(), d.used).filter((a) => !manual.some((m) => m.active && a.start < m.end && a.end > m.start));
+  const fresh = detect(d.doc.text, getEffectivePatterns(), d.book).filter((a) => !manual.some((m) => m.active && a.start < m.end && a.end > m.start));
   d.items = [...manual, ...fresh].sort((a, b) => a.start - b.start);
   applyDisabledCategories(d);
   markDirty(d);
@@ -468,7 +468,7 @@ function showAddPopup(rect: DOMRect, start: number, end: number, done: () => voi
     el('div', { class: 'add-popup-text' }, `「${text.length > 40 ? text.slice(0, 40) + '…' : text}」`),
     el('div', { class: 'add-popup-row' }, select, button('新增為去識別化項目', () => {
       try {
-        addManualItem(d.items, d.doc.text, start, end, select.value as Category, d.used);
+        addManualItem(d.items, d.doc.text, start, end, select.value as Category, d.book);
         markDirty(d);
         popup.remove();
         toast('已新增', 'success', 1500);
