@@ -44,7 +44,7 @@
 
 **不變條件**:
 - 生效（active）項目的 `[start, end)` 彼此不重疊（FR-008：偵測時長者優先；手動圈選與既有項目重疊時拒絕並提示）。
-- `code` 在同一次輸出中不重複（FR-018）；同一原始值多次出現 → 各自的 RedactionItem、各自的 code。
+- 同一份文件內，`category` 與 `original` 皆相同的 RedactionItem 共用同一個 `code`，不同組合的 `code` 不重複（FR-018）；同一原始值多次出現 → 各自的 RedactionItem、同一個 code；CSV 每個 code 只列一列。
 
 **狀態轉移**: `active=true` ⇄ `active=false`（取消/加回，FR-014）；下載時僅 `active=true` 者進入輸出與 CSV。
 
