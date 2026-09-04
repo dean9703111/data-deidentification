@@ -4,6 +4,41 @@ import { getEffectivePatterns, loadConfig, newCustomId, removeCustom, saveConfig
 import { compilePattern } from '../core/detector';
 import { button, clear, el, toast } from './components';
 
+/** Filled into the "new rule" form by the 填入範例 button so first-time users can see a working rule end to end. */
+const SAMPLE_RULE = {
+  name: '員工編號',
+  category: '識別碼' as Category,
+  regex: 'EMP-\\d{6}',
+  example: 'EMP-004521',
+  sample: '承辦人員工編號 EMP-004521，協辦 EMP-000317；舊制編號 EMP-12345 位數不足，不會命中。',
+};
+
+/** Prompt users can paste into an AI assistant to get a rule that fits this tool's RegExp constraints. */
+const AI_PROMPT = [
+  '我在使用「文件去識別化工具」，需要新增一條自訂偵測規則，請幫我寫一個 JavaScript 正規表達式（RegExp）。限制如下：',
+  '1. 工具會以 new RegExp(規則, \'gu\') 在整份文件中搜尋，請只回覆規則本身，不要加前後斜線、flags，也不要加 ^ 或 $。',
+  '2. 規則不可比對到空字串，且只能使用 JavaScript 支援的語法。',
+  '3. 請避免過度寬鬆而誤抓一般文字。',
+  '',
+  '我要偵測的內容：（描述格式，例如：員工編號，EMP- 開頭接 6 位數字）',
+  '應該命中的例子：（例如：EMP-004521、EMP-000317）',
+  '不應該命中的例子與原因：（例如：EMP-12345 只有 5 位數字、emp-004521 是小寫開頭）',
+  '',
+  `請依序回覆：規則名稱、建議類別（${CATEGORIES.join('／')} 擇一）、規則、一個範例值，並簡短說明規則各部分的意思。`,
+].join('\n');
+
+async function copyToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard) return navigator.clipboard.writeText(text);
+  // Plain-http intranet hosting has no navigator.clipboard; fall back to the legacy command.
+  const ta = el('textarea', { readonly: true, style: 'position:fixed;opacity:0' });
+  ta.value = text;
+  document.body.append(ta);
+  ta.select();
+  const ok = document.execCommand('copy');
+  ta.remove();
+  if (!ok) throw new Error('copy failed');
+}
+
 export function createPatternsView(): HTMLElement {
   const root = el('section', { class: 'view patterns-view' });
   render(root);
@@ -119,6 +154,24 @@ function renderForm(root: HTMLElement, config: PatternConfig, editing: CustomPat
     }
   };
 
+  const fillSample = () => {
+    name.value = SAMPLE_RULE.name;
+    category.value = SAMPLE_RULE.category;
+    regex.value = SAMPLE_RULE.regex;
+    example.value = SAMPLE_RULE.example;
+    sample.value = SAMPLE_RULE.sample;
+    preview();
+    toast('已填入範例規則，可直接修改，再按「新增規則」儲存', 'info', 3000);
+  };
+  const copyPrompt = async () => {
+    try {
+      await copyToClipboard(AI_PROMPT);
+      toast('已複製提示詞，貼給 ChatGPT、Claude 或 Gemini，並補上你要偵測的格式與例子', 'success', 5000);
+    } catch {
+      toast('無法存取剪貼簿，請改用支援的瀏覽器', 'error');
+    }
+  };
+
   return el(
     'div',
     { class: 'form-card' },
@@ -133,6 +186,8 @@ function renderForm(root: HTMLElement, config: PatternConfig, editing: CustomPat
     el('div', { class: 'form-actions' },
       button(editing ? '儲存變更' : '新增規則', save, 'btn btn-primary'),
       editing ? button('取消編輯', () => render(root), 'btn btn-ghost') : null,
+      editing ? null : button('填入範例', fillSample, 'btn'),
+      el('button', { class: 'btn', type: 'button', 'data-tip': AI_PROMPT, onClick: () => void copyPrompt() }, '複製 AI 提示詞'),
     ),
   );
 }
