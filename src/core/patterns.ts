@@ -3,7 +3,7 @@ import { isValidTaxId, isValidTwId } from './twid';
 
 const CJK = '\\u4e00-\\u9fa5';
 
-const CITIES =
+export const CITIES =
   '(?:[臺台]北市|新北市|桃園市|[臺台]中市|[臺台]南市|高雄市|基隆市|新竹[市縣]|嘉義[市縣]|苗栗縣|彰化縣|南投縣|雲林縣|屏東縣|宜蘭縣|花蓮縣|[臺台]東縣|澎湖縣|金門縣|連江縣)';
 const DISTRICT = `(?:[${CJK}]{1,4}[鄉鎮市區])?`;
 const ROAD = `(?:[${CJK}\\d]{1,8}(?:路|街|大道))`;

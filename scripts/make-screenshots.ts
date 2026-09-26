@@ -62,8 +62,9 @@ await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 2 });
 page.on('dialog', (d) => void d.accept());
 await page.goto(BASE_URL, { waitUntil: 'networkidle0' });
 
-// 1. Upload screen (file drop zone + paste box)
-await annotate(page, [['.tabs', 1], ['.dropzone', 2], ['.paste-area', 3], ['.paste-actions .btn', 4]]);
+// 1. Upload screen (file drop zone + paste box + shared-code options)
+await page.evaluate(() => ((document.querySelector('.code-options') as HTMLDetailsElement).open = true));
+await annotate(page, [['.tabs', 1], ['.dropzone', 2], ['.paste-area', 3], ['.paste-actions .btn', 4], ['.code-options', 5]]);
 await shot(page, '01-upload');
 
 // 2. Preview after detection (list collapsed by default)
@@ -101,12 +102,51 @@ await page.evaluate(() => (document.querySelector('.toolbar-actions .btn-ghost')
 await new Promise((r) => setTimeout(r, 300));
 await upload(page, '.process-view input[type=file]', 'examples/01-核心流程/委外服務契約書.docx');
 
+// 2d/2e. Output mode: 同預覽 (preview mask with codes in place of the stars), then 自訂 per category
+const showMarkers = (on: boolean) =>
+  page.evaluate((v) => {
+    const t = document.querySelector('.legend-toggles .legend-toggle:last-child input') as HTMLInputElement;
+    if (t.checked !== v) t.click();
+  }, on);
+await page.click('input[name=output-mode][value=preview]');
+await new Promise((r) => setTimeout(r, 300));
+await showMarkers(true);
+await annotate(page, [['.output-panel-head', 1], ['.output-panel p', 2], ['.preview', 3]]);
+await shot(page, '02d-output-preview');
+await page.click('input[name=output-mode][value=custom]');
+await new Promise((r) => setTimeout(r, 300));
+await page.evaluate(() => {
+  const row = [...document.querySelectorAll('.output-table tr')].find((tr) => tr.textContent!.includes('身分證'))!;
+  const sel = row.querySelector('select') as HTMLSelectElement;
+  sel.value = 'ends';
+  sel.dispatchEvent(new Event('change'));
+});
+await new Promise((r) => setTimeout(r, 300));
+await page.evaluate(() => {
+  const row = [...document.querySelectorAll('.output-table tr')].find((tr) => tr.textContent!.includes('身分證'))!;
+  const head = row.querySelector('input[type=number]') as HTMLInputElement;
+  head.value = '2';
+  head.dispatchEvent(new Event('change'));
+});
+await new Promise((r) => setTimeout(r, 300));
+await showMarkers(true);
+await page.evaluate(() => {
+  const row = [...document.querySelectorAll('.output-table tr')].find((tr) => tr.textContent!.includes('身分證'))!;
+  row.classList.add('shot-row');
+});
+await annotate(page, [['.output-table', 1], ['.output-table .shot-row', 2], ['.toolbar-row.muted .notice', 3]]);
+await shot(page, '02e-output-custom');
+// back to 全部編碼 with the friendly mask for the remaining steps
+await page.click('input[name=output-mode][value=code]');
+await new Promise((r) => setTimeout(r, 300));
+await showMarkers(false);
+
 // 3. Tooltip on hover
 await page.evaluate(() => {
   const m = document.querySelectorAll('.preview .mark')[2] as HTMLElement;
   m.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 });
-await annotate(page, [['.tooltip', 1], ['.legend-toggle', 2]]);
+await annotate(page, [['.tooltip', 1], ['.legend-toggles .legend-toggle:last-child', 2]]);
 await shot(page, '03-tooltip');
 await page.evaluate(() => (document.querySelector<HTMLElement>('.tooltip')!.hidden = true));
 
@@ -145,7 +185,7 @@ await page.evaluate(() => {
   document.querySelector('.preview')!.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
 });
 await new Promise((r) => setTimeout(r, 200));
-await page.select('.add-popup select', '識別碼');
+await page.select('.add-popup select', '識別碼'); // first select = category (retention choice only shows in 自訂)
 await annotate(page, [['.add-popup', 1]]);
 await shot(page, '04c-add');
 await page.evaluate(() => document.querySelector('.add-popup')?.remove());
@@ -164,6 +204,28 @@ await page.type('.form-card input[placeholder="例如：EMP-004521"]', 'EMP-0045
 await page.type('.form-card textarea', '承辦 EMP-004521 與 EMP-000001');
 await annotate(page, [['.table-wrap', 1], ['.switch', 2], ['.form-card', 3], ['.hits', 4]]);
 await shot(page, '06-patterns', true);
+
+// 6b. Retention setting of a rule (身分證 keeps the first 2 characters)
+await page.evaluate(() => {
+  const row = [...document.querySelectorAll('.patterns-view tbody tr')].find((tr) => tr.textContent!.includes('A123456789'))!;
+  const btn = [...row.querySelectorAll<HTMLButtonElement>('button')].find((b) => /隱藏|保留/.test(b.textContent!))!;
+  btn.classList.add('shot-keep');
+  btn.click();
+});
+await new Promise((r) => setTimeout(r, 300));
+await page.evaluate(() => {
+  const ed = document.querySelector('.retention-editor')!;
+  const sel = ed.querySelector('select') as HTMLSelectElement;
+  sel.value = 'ends';
+  sel.dispatchEvent(new Event('input'));
+  const head = ed.querySelector('input[type=number]') as HTMLInputElement;
+  head.value = '2';
+  head.dispatchEvent(new Event('input'));
+  ed.scrollIntoView({ block: 'center' });
+});
+await new Promise((r) => setTimeout(r, 300));
+await annotate(page, [['.patterns-view thead th:nth-child(7)', 1], ['.retention-controls', 2], ['.retention-preview', 3], ['.retention-editor .form-actions', 4]]);
+await shot(page, '06b-retention');
 
 // 7. Restore page with a missing-code warning
 await page.click('[data-tab="restore"]');

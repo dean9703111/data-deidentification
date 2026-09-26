@@ -1,0 +1,91 @@
+- generic [ref=f6e2]:
+  - banner [ref=f6e3]:
+    - generic [ref=f6e4]:
+      - heading "文件去識別化工具" [level=1] [ref=f6e5]
+      - generic [ref=f6e6]: 純前端處理・文件不離開你的電腦
+    - navigation [ref=f6e7]:
+      - button "去識別化" [ref=f6e8] [cursor=pointer]
+      - button "偵測規則" [ref=f6e9] [cursor=pointer]
+      - button "還原" [ref=f6e10] [cursor=pointer]
+      - link "使用說明 ↗" [ref=f6e11] [cursor=pointer]:
+        - /url: https://github.com/dean9703111/data-deidentification#操作流程
+  - main [ref=f6e12]:
+    - generic [ref=f6e13]:
+      - heading "上傳文件" [level=2] [ref=f6e14]
+      - paragraph [ref=f6e15]: 支援 PDF（含文字層）、Word (.docx)、Excel (.xlsx)、TXT、Markdown；可一次選擇多個檔案（最多 10 個、格式可混合），單檔 20 MB 以內。所有處理皆在瀏覽器內完成，文件不會離開你的電腦。
+      - button "拖曳一或多個檔案到這裡，或點擊選擇檔案 .pdf .docx .xlsx .txt .md ・ 最多 10 個" [ref=f6e16] [cursor=pointer]:
+        - generic [ref=f6e17]: 拖曳一或多個檔案到這裡，或點擊選擇檔案
+        - generic [ref=f6e18]: .pdf .docx .xlsx .txt .md ・ 最多 10 個
+      - generic [ref=f6e19]:
+        - generic [ref=f6e20]: 或
+        - textbox "或直接把文字貼在這裡（例如信件、對話紀錄、報表內容），再按「開始去識別化」" [ref=f6e22]
+        - generic [ref=f6e23]:
+          - button "開始去識別化" [ref=f6e24] [cursor=pointer]
+          - generic [ref=f6e25]: 貼上的文字會以純文字處理，結果可下載為 .txt 或直接複製
+      - group [ref=f6e26]:
+        - generic "進階：跨檔案共用編碼" [ref=f6e27] [cursor=pointer]
+      - generic [ref=f6e28]:
+        - generic [ref=f6e29]:
+          - heading "沒有檔案？用範例體驗" [level=3] [ref=f6e30]
+          - generic [ref=f6e31]: 皆為程式產生的虛構資料；「載入」直接送進本頁處理，「下載」取得原始檔
+        - generic [ref=f6e32]:
+          - generic [ref=f6e33]:
+            - generic [ref=f6e34]:
+              - generic [ref=f6e35]:
+                - generic [ref=f6e36]: Word
+                - text: 委外服務契約書.docx
+              - generic [ref=f6e37]: 4 頁契約，含表格與頁首頁尾
+            - generic [ref=f6e38]:
+              - button "載入" [ref=f6e39] [cursor=pointer]
+              - link "下載" [ref=f6e40] [cursor=pointer]:
+                - /url: ./samples/contract.docx
+          - generic [ref=f6e41]:
+            - generic [ref=f6e42]:
+              - generic [ref=f6e43]:
+                - generic [ref=f6e44]: PDF
+                - text: 報價單.pdf
+              - generic [ref=f6e45]: 3 頁報價單，跨頁明細表
+            - generic [ref=f6e46]:
+              - button "載入" [ref=f6e47] [cursor=pointer]
+              - link "下載" [ref=f6e48] [cursor=pointer]:
+                - /url: ./samples/quotation.pdf
+          - generic [ref=f6e49]:
+            - generic [ref=f6e50]:
+              - generic [ref=f6e51]:
+                - generic [ref=f6e52]: Excel
+                - text: 客戶資料.xlsx
+              - generic [ref=f6e53]: 60 筆客戶，三個工作表
+            - generic [ref=f6e54]:
+              - button "載入" [ref=f6e55] [cursor=pointer]
+              - link "下載" [ref=f6e56] [cursor=pointer]:
+                - /url: ./samples/customers.xlsx
+          - generic [ref=f6e57]:
+            - generic [ref=f6e58]:
+              - generic [ref=f6e59]:
+                - generic [ref=f6e60]: Markdown
+                - text: 專案會議紀錄.md
+              - generic [ref=f6e61]: 出席者、決議、待辦
+            - generic [ref=f6e62]:
+              - button "載入" [ref=f6e63] [cursor=pointer]
+              - link "下載" [ref=f6e64] [cursor=pointer]:
+                - /url: ./samples/meeting-notes.md
+  - contentinfo [ref=f6e65]:
+    - generic [ref=f6e66]:
+      - generic [ref=f6e67]:
+        - strong [ref=f6e68]: 文件去識別化工具
+        - text: 開源專案（MIT）・
+        - link "原始碼" [ref=f6e69] [cursor=pointer]:
+          - /url: https://github.com/dean9703111/data-deidentification
+        - text: ・
+        - button "常見問題" [ref=f6e70] [cursor=pointer]
+      - generic [ref=f6e71]:
+        - link "Medium" [ref=f6e72] [cursor=pointer]:
+          - /url: https://medium.com/@dean-lin
+        - link "Facebook" [ref=f6e76] [cursor=pointer]:
+          - /url: https://www.facebook.com/deanlinbao
+        - link "Threads" [ref=f6e80] [cursor=pointer]:
+          - /url: https://www.threads.com/@deanlin5288
+        - link "YouTube" [ref=f6e84] [cursor=pointer]:
+          - /url: https://www.youtube.com/@dlcorner
+        - link "GitHub" [ref=f6e88] [cursor=pointer]:
+          - /url: https://github.com/dean9703111

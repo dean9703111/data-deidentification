@@ -1,5 +1,6 @@
-import type { CustomPatternConfig, Pattern, PatternConfig } from './types';
+import type { CustomPatternConfig, Pattern, PatternConfig, Retention } from './types';
 import { BUILTIN_PATTERNS } from './patterns';
+import { sanitizeRetention } from './retention';
 
 export const STORAGE_KEY = 'deid.patternConfig.v1';
 
@@ -27,10 +28,21 @@ export function loadConfig(): PatternConfig {
       customPatterns: Array.isArray(parsed.customPatterns)
         ? parsed.customPatterns.filter((c) => c && typeof c.regex === 'string' && validateRegex(c.regex) === null)
         : [],
+      retention: readRetention(parsed.retention),
     };
   } catch {
     return defaultConfig();
   }
+}
+
+function readRetention(x: unknown): Record<string, Retention> {
+  const out: Record<string, Retention> = {};
+  if (!x || typeof x !== 'object') return out;
+  for (const [id, r] of Object.entries(x)) {
+    const ok = sanitizeRetention(r);
+    if (ok && ok.mode !== 'none') out[id] = ok;
+  }
+  return out;
 }
 
 export function saveConfig(config: PatternConfig): void {
@@ -51,8 +63,9 @@ export function validateRegex(src: string): string | null {
 
 export function getEffectivePatterns(config: PatternConfig = loadConfig()): Pattern[] {
   const disabled = new Set(config.disabledBuiltins);
-  const builtins = BUILTIN_PATTERNS.map((p) => ({ ...p, enabled: !disabled.has(p.id) }));
-  const customs: Pattern[] = config.customPatterns.map((c) => ({ ...c, source: 'custom' }));
+  const retention = config.retention ?? {};
+  const builtins = BUILTIN_PATTERNS.map((p) => ({ ...p, enabled: !disabled.has(p.id), retention: retention[p.id] }));
+  const customs: Pattern[] = config.customPatterns.map((c) => ({ ...c, source: 'custom', retention: retention[c.id] }));
   return [...builtins, ...customs];
 }
 
@@ -74,7 +87,16 @@ export function upsertCustom(config: PatternConfig, custom: CustomPatternConfig)
 }
 
 export function removeCustom(config: PatternConfig, id: string): PatternConfig {
-  return { ...config, customPatterns: config.customPatterns.filter((c) => c.id !== id) };
+  const retention = { ...(config.retention ?? {}) };
+  delete retention[id];
+  return { ...config, customPatterns: config.customPatterns.filter((c) => c.id !== id), retention };
+}
+
+export function setRetention(config: PatternConfig, id: string, r: Retention): PatternConfig {
+  const retention = { ...(config.retention ?? {}) };
+  if (r.mode === 'none') delete retention[id];
+  else retention[id] = r;
+  return { ...config, retention };
 }
 
 export function newCustomId(): string {

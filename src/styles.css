@@ -344,3 +344,49 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 body:has(.site-info-dialog[open]) { overflow: hidden; }
 .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; }
 .link-btn:hover { text-decoration: underline; }
+
+/* Partial retention & shared codes (specs/002) */
+.btn-kept { border-color: var(--primary); color: var(--primary); }
+.retention-row > td { background: var(--bg); }
+.retention-editor { display: grid; gap: 0.5rem; padding: 0.5rem 0.25rem; }
+.retention-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.retention-fields { display: inline-flex; align-items: center; gap: 0.25rem; }
+.retention-fields[hidden] { display: none; }
+.input-num { width: 4.5rem; }
+.retention-preview { font-size: 0.85rem; }
+.code-options { margin-top: 1rem; }
+.code-options summary { cursor: pointer; font-weight: 600; }
+.code-options-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.5rem 0; }
+.output-panel { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; background: var(--surface); }
+.output-panel-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.output-panel p { margin: 0.35rem 0 0; }
+.output-table td { vertical-align: middle; }
+
+/* RWD: wrap toolbars instead of squeezing button labels into one character per line */
+.btn, .tab { white-space: nowrap; }
+.toolbar-actions { flex-wrap: wrap; }
+.file-info { flex-wrap: wrap; min-width: 0; }
+.file-info strong { overflow-wrap: anywhere; }
+.add-popup { max-width: min(360px, calc(100vw - 16px)); }
+.output-table { min-width: 0; }
+.output-table .select { width: auto; max-width: 100%; }
+/* The retention editor lives in a row of a horizontally scrolling table: pin it to the visible area. */
+.retention-editor { position: sticky; left: 0; max-width: calc(100vw - 4rem); }
+
+@media (max-width: 700px) {
+  .header { padding: 0.6rem 1rem; gap: 0.5rem; }
+  .tab { padding: 0.4rem 0.65rem; }
+  .panels { padding: 1rem 1rem 2rem; }
+  .footer { position: static; }
+  .footer-inner { padding: 0.55rem 1rem; }
+  .toolbar { padding: 0.6rem; }
+  .toolbar-sep { display: none; }
+  .toolbar-actions .btn { flex: 1 1 auto; }
+  .output-panel { padding: 0.5rem; }
+  .output-table, .output-table tbody, .output-table tr, .output-table td { display: block; }
+  .output-table tr { padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
+  .output-table td, .output-table td.col-nowrap { border: 0; padding: 0.15rem 0; white-space: normal; }
+  .output-table .select { width: 100%; }
+}
+.output-panel-head .legend-toggle { margin: 0; }
+.retention-editor .select { width: auto; max-width: 100%; }

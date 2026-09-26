@@ -1,6 +1,7 @@
-import type { Category, CustomPatternConfig, Pattern, PatternConfig } from '../core/types';
+import type { Category, CustomPatternConfig, Pattern, PatternConfig, Retention } from '../core/types';
 import { CATEGORIES } from '../core/types';
-import { getEffectivePatterns, loadConfig, newCustomId, removeCustom, saveConfig, setBuiltinEnabled, upsertCustom, validateRegex } from '../core/pattern-store';
+import { getEffectivePatterns, loadConfig, newCustomId, removeCustom, saveConfig, setBuiltinEnabled, setRetention, upsertCustom, validateRegex } from '../core/pattern-store';
+import { MODE_LABELS, SUGGESTED_RETENTION, checkRetention, describeRetention, firstExample, modesFor, splitFor, type RetentionMode } from '../core/retention';
 import { compilePattern } from '../core/detector';
 import { button, clear, el, toast } from './components';
 
@@ -45,20 +46,22 @@ export function createPatternsView(): HTMLElement {
   return root;
 }
 
-function render(root: HTMLElement, editing: CustomPatternConfig | null = null): void {
+/** `retentionFor` is the id of the rule whose retention editor is open below its row. */
+function render(root: HTMLElement, editing: CustomPatternConfig | null = null, retentionFor: string | null = null): void {
   clear(root);
   const config = loadConfig();
   const patterns = getEffectivePatterns(config);
   root.append(
     el('h2', {}, '偵測規則'),
     el('p', { class: 'muted' }, '所有規則皆以正規表達式（JavaScript RegExp，flags: gu）比對。內建規則可停用但不可修改；自訂規則可新增、編輯、刪除。設定僅儲存在你的瀏覽器中。'),
-    renderTable(root, config, patterns),
+    el('p', { class: 'muted' }, '「保留」欄可讓每條規則保留前後幾碼、分隔字元前後、姓氏或縣市區，方便去識別化後做統計（例如身分證保留前 2 碼＝地區＋性別）。保留的字元會留在標記外，例如 A1[身分證:a3f9c2]，仍可用編碼表完整還原。'),
+    renderTable(root, config, patterns, retentionFor),
     renderForm(root, config, editing),
   );
 }
 
-function renderTable(root: HTMLElement, config: PatternConfig, patterns: Pattern[]): HTMLElement {
-  const rows = patterns.map((p) => {
+function renderTable(root: HTMLElement, config: PatternConfig, patterns: Pattern[], retentionFor: string | null): HTMLElement {
+  const rows = patterns.flatMap((p) => {
     const toggle = el('input', { type: 'checkbox' }) as HTMLInputElement;
     toggle.checked = p.enabled;
     toggle.addEventListener('change', () => {
@@ -81,7 +84,8 @@ function renderTable(root: HTMLElement, config: PatternConfig, patterns: Pattern
         }, 'btn btn-small btn-danger'),
       );
     }
-    return el(
+    const kept = p.retention && p.retention.mode !== 'none';
+    const row = el(
       'tr',
       { class: p.enabled ? '' : 'row-disabled' },
       el('td', { class: 'col-center' }, el('label', { class: 'switch' }, toggle)),
@@ -90,14 +94,19 @@ function renderTable(root: HTMLElement, config: PatternConfig, patterns: Pattern
       el('td', {}, el('code', { class: 'regex' }, p.regex.length > 90 ? p.regex.slice(0, 90) + '…' : p.regex)),
       el('td', { class: 'muted' }, p.example),
       el('td', { class: 'col-nowrap' }, el('span', { class: 'tag' }, p.source === 'builtin' ? '內建' : '自訂')),
+      el('td', { class: 'col-nowrap' },
+        button(describeRetention(p.retention), () => render(root, null, retentionFor === p.id ? null : p.id), `btn btn-small${kept ? ' btn-kept' : ''}`),
+      ),
       actions,
     );
+    if (retentionFor !== p.id) return [row];
+    return [row, el('tr', { class: 'retention-row' }, el('td', { colspan: '8' }, renderRetentionEditor(root, config, p)))];
   });
   return el(
     'div',
     { class: 'table-wrap' },
     el('table', { class: 'table' },
-      el('thead', {}, el('tr', {}, el('th', { class: 'col-center col-nowrap' }, '啟用'), el('th', {}, '名稱'), el('th', {}, '類別'), el('th', {}, '比對規則'), el('th', {}, '範例'), el('th', {}, '來源'), el('th', {}, ''))),
+      el('thead', {}, el('tr', {}, el('th', { class: 'col-center col-nowrap' }, '啟用'), el('th', {}, '名稱'), el('th', {}, '類別'), el('th', {}, '比對規則'), el('th', {}, '範例'), el('th', {}, '來源'), el('th', {}, '保留'), el('th', {}, ''))),
       el('tbody', {}, ...rows),
     ),
   );
@@ -182,12 +191,85 @@ function renderForm(root: HTMLElement, config: PatternConfig, editing: CustomPat
       el('label', { class: 'span-2' }, '比對規則（RegExp）', regex, regexError),
       el('label', { class: 'span-2' }, '範例', example),
       el('label', { class: 'span-2' }, '測試文字', sample, hits),
+      el('p', { class: 'muted small span-2' }, '規則儲存後，可在上方規則表的「保留」欄設定保留方式，例如員工證保留第 1 碼（部門代碼）。'),
     ),
     el('div', { class: 'form-actions' },
       button(editing ? '儲存變更' : '新增規則', save, 'btn btn-primary'),
       editing ? button('取消編輯', () => render(root), 'btn btn-ghost') : null,
       editing ? null : button('填入範例', fillSample, 'btn'),
       el('button', { class: 'btn', type: 'button', 'data-tip': AI_PROMPT, onClick: () => void copyPrompt() }, '複製 AI 提示詞'),
+    ),
+  );
+}
+
+function renderRetentionEditor(root: HTMLElement, config: PatternConfig, p: Pattern): HTMLElement {
+  const modes = modesFor(p.category);
+  const mode = el('select', { class: 'select' }, ...modes.map((m) => el('option', { value: m }, MODE_LABELS[m]))) as HTMLSelectElement;
+  const head = el('input', { class: 'input input-num', type: 'number', min: '0', value: '0' }) as HTMLInputElement;
+  const tail = el('input', { class: 'input input-num', type: 'number', min: '0', value: '0' }) as HTMLInputElement;
+  const delim = el('input', { class: 'input input-num', value: '@' }) as HTMLInputElement;
+  const side = el('select', { class: 'select' }, el('option', { value: 'after' }, '保留之後（含分隔字元）'), el('option', { value: 'before' }, '保留之前（含分隔字元）')) as HTMLSelectElement;
+  const endsBox = el('span', { class: 'retention-fields' }, '保留前 ', head, ' 碼，後 ', tail, ' 碼');
+  const delimBox = el('span', { class: 'retention-fields' }, '分隔字元 ', delim, ' ', side);
+  const out = el('div', { class: 'retention-preview mono' });
+  const msgs = el('div', {});
+
+  const fill = (r: Retention) => {
+    mode.value = modes.includes(r.mode) ? r.mode : 'none';
+    if (r.mode === 'ends') {
+      head.value = String(r.head);
+      tail.value = String(r.tail);
+    }
+    if (r.mode === 'delim') {
+      delim.value = r.delimiter;
+      side.value = r.side;
+    }
+  };
+  const read = (): Retention => {
+    const m = mode.value as RetentionMode;
+    if (m === 'ends') return { mode: 'ends', head: Number(head.value), tail: Number(tail.value) };
+    if (m === 'delim') return { mode: 'delim', delimiter: delim.value, side: side.value as 'before' | 'after' };
+    return { mode: m } as Retention;
+  };
+  const update = () => {
+    endsBox.hidden = mode.value !== 'ends';
+    delimBox.hidden = mode.value !== 'delim';
+    const r = read();
+    const ex = firstExample(p.example);
+    const s = splitFor(ex, r, p.category);
+    out.textContent = ex ? `範例：${ex} → ${ex.slice(0, s.head)}[${p.category}:······]${ex.slice(ex.length - s.tail)}` : '（此規則沒有範例可預覽）';
+    const c = checkRetention(p.example, r, p.category);
+    clear(msgs);
+    if (c.error) msgs.append(el('div', { class: 'field-error' }, c.error));
+    for (const w of c.warnings) msgs.append(el('div', { class: 'notice notice-inline' }, `⚠ ${w}`));
+  };
+  for (const input of [mode, head, tail, delim, side]) input.addEventListener('input', update);
+  fill(p.retention ?? { mode: 'none' });
+  update();
+
+  const save = () => {
+    const r = read();
+    const c = checkRetention(p.example, r, p.category);
+    if (c.error) {
+      toast(c.error, 'error');
+      return;
+    }
+    if (c.warnings.length && !confirm(`${c.warnings.join('\n')}\n\n仍要儲存這個保留設定嗎？`)) return;
+    saveConfig(setRetention(config, p.id, r));
+    toast(`「${p.name}」已設為${describeRetention(r)}；已載入的檔案請按「重新偵測」套用`, 'success', 4000);
+    render(root);
+  };
+  const suggestion = SUGGESTED_RETENTION[p.id];
+  return el(
+    'div',
+    { class: 'retention-editor' },
+    el('div', { class: 'retention-controls' }, el('strong', {}, `「${p.name}」的保留方式：`), mode, endsBox, delimBox),
+    out,
+    msgs,
+    el('div', { class: 'form-actions' },
+      button('儲存', save, 'btn btn-primary btn-small'),
+      suggestion ? button(`套用建議（${describeRetention(suggestion)}）`, () => { fill(suggestion); update(); }, 'btn btn-small') : null,
+      button('取消', () => render(root), 'btn btn-ghost btn-small'),
     ),
   );
 }

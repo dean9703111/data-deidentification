@@ -1,6 +1,9 @@
-import type { Category } from './types';
+import type { Category, RedactionItem } from './types';
 
-const COMPOUND_SURNAMES = ['歐陽', '司馬', '諸葛', '上官', '張簡', '范姜', '司徒', '東方', '令狐', '南宮', '端木', '皇甫', '尉遲', '夏侯'];
+export const COMPOUND_SURNAMES = ['歐陽', '司馬', '諸葛', '上官', '張簡', '范姜', '司徒', '東方', '令狐', '南宮', '端木', '皇甫', '尉遲', '夏侯'];
+
+/** Company name split into (first two chars)(middle)(organisation suffix); shared with the preview-style retention. */
+export const COMPANY_MASK_RE = /^(.{2})(.*?)(股份有限公司|有限公司|無限公司|兩合公司|企業社|工作室|事務所|商行|診所|基金會|協會|合作社|工程行|企業行|實業社|文化事業)$/u;
 
 function keepEnds(s: string, head: number, tail: number, fill = '*'): string {
   if (s.length <= head + tail) return fill.repeat(s.length);
@@ -41,7 +44,7 @@ export function maskDisplay(category: Category, original: string): string {
       return keepEnds(original, 2, 0);
     }
     case '公司': {
-      const m = original.match(/^(.{2})(.*?)(股份有限公司|有限公司|無限公司|兩合公司|企業社|工作室|事務所|商行|診所|基金會|協會|合作社|工程行|企業行|實業社|文化事業)$/u);
+      const m = original.match(COMPANY_MASK_RE);
       if (m) return m[2] ? `${m[1]}**${m[3]}` : `${m[1][0]}*${m[3]}`;
       return keepEnds(original, 2, 0);
     }
@@ -51,4 +54,14 @@ export function maskDisplay(category: Category, original: string): string {
     default:
       return keepEnds(original, 3, 0);
   }
+}
+
+/** Preview mask for an item: with kept characters, show exactly those and star the hidden part. */
+export function maskItem(it: RedactionItem): string {
+  const head = it.head ?? 0;
+  const tail = it.tail ?? 0;
+  if (!head && !tail) return maskDisplay(it.category, it.original);
+  const o = it.original;
+  const fill = it.category === '姓名' ? 'O' : '*';
+  return o.slice(0, head) + fill.repeat(o.length - head - tail) + o.slice(o.length - tail);
 }

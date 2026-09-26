@@ -8,10 +8,16 @@ function quote(field: string): string {
   return field;
 }
 
+const KEPT_HEADERS = ['kept_prefix', 'kept_suffix'] as const;
+
+/** The kept_* columns are appended only when some row keeps characters, so fully hidden output is unchanged. */
 export function serializeMapping(entries: MappingEntry[]): string {
-  const lines = [REQUIRED_HEADERS.join(',')];
+  const kept = entries.some((e) => e.prefix || e.suffix);
+  const lines = [[...REQUIRED_HEADERS, ...(kept ? KEPT_HEADERS : [])].join(',')];
   for (const e of entries) {
-    lines.push([e.code, e.category, e.original].map(quote).join(','));
+    const fields = [e.code, e.category, e.original];
+    if (kept) fields.push(e.prefix ?? '', e.suffix ?? '');
+    lines.push(fields.map(quote).join(','));
   }
   return BOM + lines.join('\r\n') + '\r\n';
 }
@@ -106,7 +112,12 @@ export function parseMapping(text: string): ParseMappingResult {
       return;
     }
     seen.add(code);
-    entries.push({ code, category, original });
+    const entry: MappingEntry = { code, category, original };
+    const prefix = 'kept_prefix' in idx ? r[idx.kept_prefix] ?? '' : '';
+    const suffix = 'kept_suffix' in idx ? r[idx.kept_suffix] ?? '' : '';
+    if (prefix) entry.prefix = prefix;
+    if (suffix) entry.suffix = suffix;
+    entries.push(entry);
   });
   return { entries, errors };
 }
