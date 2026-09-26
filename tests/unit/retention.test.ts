@@ -154,18 +154,23 @@ describe('shared and imported codes', () => {
   });
 });
 
-describe('preview-style output (部分保留)', () => {
+describe('standard 部分保留 (default output mode)', () => {
   const cases: [string, string, RegExp][] = [
     ['姓名', '王小明', /^王\[姓名:\w{6}\]$/],
-    ['身分證', 'A123456789', /^A12\[身分證:\w{6}\]9$/],
-    ['手機', '0912-345-678', /^0912-\[手機:\w{6}\]-678$/],
-    ['市話', '(02)2712-3456', /^\(02\)\[市話:\w{6}\]56$/],
+    ['姓名', '歐陽志明', /^歐陽\[姓名:\w{6}\]$/],
+    ['身分證', 'A123456789', /^A1\[身分證:\w{6}\]$/],
+    ['手機', '0912-345-678', /^0912-\[手機:\w{6}\]$/],
+    ['手機', '0912345678', /^0912\[手機:\w{6}\]$/],
+    ['市話', '(02)2712-3456', /^\(02\)\[市話:\w{6}\]$/],
+    ['市話', '037-123456', /^037-\[市話:\w{6}\]$/],
+    ['市話', '0227123456', /^02\[市話:\w{6}\]$/],
     ['地址', '台北市信義區市府路45號8樓', /^台北市信義區\[地址:\w{6}\]$/],
-    ['電子郵件', 'amy.chen@gmail.com', /^am\[電子郵件:\w{6}\]@gmail\.com$/],
-    ['公司', '築夢實業股份有限公司', /^築夢\[公司:\w{6}\]股份有限公司$/],
-    ['統編', '04595257', /^04\[統編:\w{6}\]7$/],
+    ['電子郵件', 'amy.chen@gmail.com', /^\[電子郵件:\w{6}\]@gmail\.com$/],
+    ['公司', '築夢實業股份有限公司', /^\[公司:\w{6}\]股份有限公司$/],
+    ['統編', '04595257', /^\[統編:\w{6}\]$/],
+    ['識別碼', 'EMP-004521', /^E\[識別碼:\w{6}\]$/],
   ];
-  it.each(cases)('%s %s keeps what the preview mask shows', (category, value, expected) => {
+  it.each(cases)('%s %s keeps only the statistics-friendly part', (category, value, expected) => {
     const items: RedactionItem[] = [];
     const it = addManualItem(items, value, 0, value.length, category as never, new CodeBook(), { mode: 'preview' });
     expect(outputFor(it)).toMatch(expected);
@@ -179,7 +184,7 @@ describe('resplitItems', () => {
     const items = detect(text, BUILTIN_PATTERNS, book);
     resplitItems(items, book, () => ({ mode: 'preview' }));
     const preview = applyRedactions(text, items);
-    expect(preview.redactedText).toMatch(/^王\[姓名:\w{6}\] A12\[身分證:\w{6}\]9 0912-\[手機:\w{6}\]-678$/);
+    expect(preview.redactedText).toMatch(/^王\[姓名:\w{6}\] A1\[身分證:\w{6}\] 0912-\[手機:\w{6}\]$/);
     expect(restore(preview.redactedText, preview.mapping).restoredText).toBe(text);
 
     resplitItems(items, book, () => undefined);

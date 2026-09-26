@@ -102,7 +102,7 @@ await page.evaluate(() => (document.querySelector('.toolbar-actions .btn-ghost')
 await new Promise((r) => setTimeout(r, 300));
 await upload(page, '.process-view input[type=file]', 'examples/01-核心流程/委外服務契約書.docx');
 
-// 2d/2e. Output settings panel: 部分保留, then 自訂 per category (preview shows the output, codes as [類別])
+// 2d/2e. Output settings panel: 部分保留 (the default), then 自訂 per category (preview shows the output, codes as [類別])
 const setPanel = (open: boolean) => page.evaluate((v) => ((document.querySelector('.output-panel') as HTMLDetailsElement).open = v), open);
 await setPanel(true);
 await page.click('input[name=output-mode][value=preview]');
@@ -132,8 +132,8 @@ await setPanel(true);
 await page.evaluate(() => [...document.querySelectorAll('.output-table tr')].find((tr) => tr.textContent!.includes('身分證'))!.classList.add('shot-row'));
 await annotate(page, [['.output-table .shot-row', 1], ['.output-panel .form-actions', 2], ['.status-line .notice', 3]]);
 await shot(page, '02e-output-custom');
-// back to 全部隱藏 with the panel collapsed for the remaining steps
-await page.click('input[name=output-mode][value=code]');
+// back to the default 部分保留 with the panel collapsed for the remaining steps
+await page.click('input[name=output-mode][value=preview]');
 await new Promise((r) => setTimeout(r, 300));
 await setPanel(false);
 

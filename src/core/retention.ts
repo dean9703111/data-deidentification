@@ -58,48 +58,37 @@ function afterDigit(value: string, n: number): number {
   return value.length;
 }
 
-/** Characters from the n-th last digit to the end, extended back over the separators before it. */
-function fromLastDigit(value: string, n: number): number {
-  let seen = 0;
-  for (let i = value.length - 1; i >= 0; i--) {
-    if (/\d/.test(value[i]) && ++seen === n) {
-      let j = i;
-      while (j > 0 && !/\d/.test(value[j - 1])) j--;
-      return value.length - j;
-    }
-  }
-  return value.length;
-}
-
-/** The characters the preview mask (core/mask.ts maskDisplay) leaves visible, per category. */
-export function previewSplit(category: Category, value: string): Split {
+/**
+ * The standard 部分保留: only the part of each value that is useful for statistics and weak for
+ * re-identification (surname, ID region + sex, mobile carrier prefix, area code, district, email
+ * domain, organisation type, first character of an identifier). 統編 stays fully hidden.
+ */
+export function standardSplit(category: Category, value: string): Split {
   switch (category) {
     case '姓名':
       return { head: COMPOUND_SURNAMES.some((s) => value.startsWith(s)) ? 2 : 1, tail: 0 };
     case '身分證':
-      return { head: 3, tail: 1 };
+      return { head: 2, tail: 0 };
     case '手機':
-      return { head: afterDigit(value, 4), tail: fromLastDigit(value, 3) };
-    case '市話':
-      return { head: afterDigit(value, 2), tail: fromLastDigit(value, 2) };
-    case '地址': {
-      const m = value.match(/^(.*?[市縣])?(.*?[鄉鎮市區])?/u);
-      const prefix = (m?.[1] ?? '').length + (m?.[2] ?? '').length;
-      return { head: prefix > 0 && prefix < value.length ? prefix : 3, tail: 0 };
+      return { head: afterDigit(value, 4), tail: 0 };
+    case '市話': {
+      const area = value.match(/^(?:\(0\d{1,3}\)|0\d{1,3}[-\s])/)?.[0];
+      return { head: area ? area.length : afterDigit(value, 2), tail: 0 };
     }
+    case '地址':
+      return rawSplit(value, { mode: 'district' }, category);
     case '電子郵件': {
       const at = value.indexOf('@');
-      return at > 0 ? { head: Math.min(2, at), tail: value.length - at } : { head: 2, tail: 0 };
+      return at > 0 ? { head: 0, tail: value.length - at } : NONE;
     }
     case '公司': {
       const m = value.match(COMPANY_MASK_RE);
-      if (m) return { head: m[2] ? 2 : 1, tail: m[3].length };
-      return { head: 2, tail: 0 };
+      return m ? { head: 0, tail: m[3].length } : NONE;
     }
     case '統編':
-      return { head: 2, tail: 1 };
+      return NONE;
     default:
-      return { head: 3, tail: 0 };
+      return { head: 1, tail: 0 };
   }
 }
 
@@ -108,7 +97,7 @@ function rawSplit(value: string, r: Retention, category: Category): Split {
     case 'none':
       return NONE;
     case 'preview':
-      return previewSplit(category, value);
+      return standardSplit(category, value);
     case 'ends':
       return { head: r.head, tail: r.tail };
     case 'delim': {
@@ -154,7 +143,7 @@ export interface RetentionCheck {
 /** Validates a retention setting against the rule's example value (FR-013–FR-015). */
 export function checkRetention(example: string, r: Retention, category: Category = '識別碼'): RetentionCheck {
   const warnings: string[] = [];
-  if (r.mode === 'preview') warnings.push('部分保留（標準）會露出較多字元（例如手機 10 碼露出 7 碼），接收方較容易辨識出個人。');
+  if (r.mode === 'preview') warnings.push('部分保留會露出部分字元（例如身分證前 2 碼、手機前 4 碼），並非完全匿名。');
   if (r.mode === 'ends') {
     if (!Number.isInteger(r.head) || !Number.isInteger(r.tail) || r.head < 0 || r.tail < 0) return { error: '保留位數必須是 0 以上的整數', warnings };
     if (r.head > 0 && r.tail > 0) warnings.push('前後同時保留，搭配其他欄位時較容易辨識出個人。');

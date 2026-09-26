@@ -11,7 +11,7 @@ export type Retention =
   | { mode: 'surname' }
   | { mode: 'city' }
   | { mode: 'district' }
-  /** Keep what the on-screen preview mask shows (王OO, A12******9…) with the code in place of the stars. */
+  /** The standard 部分保留 per category (see core/retention.ts standardSplit), e.g. A1[身分證], 0912-[手機]. */
   | { mode: 'preview' };
 
 export interface Pattern {

@@ -14,12 +14,12 @@ import { SAMPLES, samplesSection } from './samples';
 
 export const MAX_FILES = 10;
 
-/** 全部隱藏 hides every value; 部分保留 keeps the standard visible characters; 自訂 is set per category. */
+/** 部分保留 (default) keeps the standard statistics-friendly characters; 全部隱藏 hides every value; 自訂 is set per category. */
 type OutputMode = 'code' | 'preview' | 'custom';
-const OUTPUT_MODE_LABELS: Record<OutputMode, string> = { code: '全部隱藏', preview: '部分保留', custom: '自訂' };
+const OUTPUT_MODE_LABELS: Record<OutputMode, string> = { preview: '部分保留', code: '全部隱藏', custom: '自訂' };
 const OUTPUT_MODE_EXAMPLES: Record<OutputMode, string> = {
+  preview: 'A123456789 → A1[身分證]',
   code: 'A123456789 → [身分證]',
-  preview: 'A123456789 → A12[身分證]9',
   custom: '逐類別設定',
 };
 
@@ -68,7 +68,7 @@ const state: State = {
   sharedCodes: false,
   imported: null,
   sharedBook: null,
-  outputMode: 'code',
+  outputMode: 'preview',
   overrides: new Map(),
 };
 
@@ -459,7 +459,7 @@ function renderWorkspace(root: HTMLElement): HTMLElement {
       button(`${state.showList ? '▾ 收合' : '▸ 展開'}偵測清單（生效 ${active} / 共 ${d.items.length}）`, () => {
         state.showList = !state.showList;
         refresh();
-      }, 'btn btn-small list-toggle'),
+      }, `btn btn-small list-toggle${state.showList ? ' is-open' : ''}`),
     );
     ws.classList.toggle('workspace-with-list', state.showList);
     ws.classList.toggle('workspace-with-files', state.docs.length > 1);
@@ -491,8 +491,11 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
   });
   const active = state.docs.reduce((n, d) => n + d.items.filter((it) => it.active).length, 0);
   const box = el('details', { class: 'output-panel', open: state.panelOpen }) as HTMLDetailsElement;
+  // The summary must read as a control, not a caption: a mode pill plus an explicit 調整 ▾ button.
+  const action = el('span', { class: 'btn btn-small summary-action' }, state.panelOpen ? '收合 ▴' : '調整輸出方式 ▾');
   box.addEventListener('toggle', () => {
     state.panelOpen = box.open;
+    action.textContent = box.open ? '收合 ▴' : '調整輸出方式 ▾';
   });
   const saveDefault = () => {
     let config = loadConfig();
@@ -512,15 +515,18 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
     render(root);
   };
   const children: (HTMLElement | null)[] = [
-    el('summary', { class: 'output-panel-summary' },
-      el('strong', {}, '輸出方式：'),
-      `${OUTPUT_MODE_LABELS[state.outputMode]}・生效 ${active} 筆`,
-      state.sharedCodes || state.imported ? '・共用／沿用編碼' : '',
-      el('span', { class: 'muted small' }, '（點擊調整類別、保留方式與編碼範圍）'),
+    el('summary', { class: 'output-panel-summary', title: '調整輸出方式、類別與編碼範圍' },
+      el('span', { class: 'summary-main' },
+        el('strong', {}, '輸出方式'),
+        el('span', { class: 'mode-pill' }, OUTPUT_MODE_LABELS[state.outputMode]),
+        el('span', { class: 'mono small muted' }, OUTPUT_MODE_EXAMPLES[state.outputMode]),
+        el('span', { class: 'muted small' }, `生效 ${active} 筆${state.sharedCodes || state.imported ? '・共用／沿用編碼' : ''}`),
+      ),
+      action,
     ),
     el('div', { class: 'output-modes' }, ...radios),
     state.outputMode === 'preview'
-      ? el('p', { class: 'small notice notice-inline' }, '⚠ 部分保留會露出較多字元（例如手機 10 碼露出 7 碼），接收方較容易辨識出個人。')
+      ? el('p', { class: 'small notice notice-inline' }, '⚠ 部分保留只露出適合統計的字元（姓氏、身分證前 2 碼、手機前 4 碼、區碼、行政區、Email 網域、公司型態），但並非完全匿名；交給外部前請確認，或改選「全部隱藏」。')
       : null,
     renderCategoryTable(root),
     state.outputMode === 'custom'

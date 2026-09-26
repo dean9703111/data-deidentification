@@ -29,3 +29,10 @@
 - [x] T010 CSS 與 RWD 檢查（375／768／1280）
 - [x] T011 更新截圖腳本並重拍；更新 README、index.html 說明與 llms.txt
 - [x] T012 npm test 與 npm run build
+
+## Phase 7: 修訂 2026-09-26
+
+- [x] T013 預設輸出方式改為部分保留；standardSplit 取代 previewSplit，改用保守標準（src/core/retention.ts、src/ui/process-view.ts），並更新測試
+- [x] T014 輸出方式摘要列改為明確的可操作樣式（模式標籤、範例、「調整輸出方式 ▾」按鈕、hover／focus）
+- [x] T015 重拍截圖；更新 README、index.html 說明與 FAQ、llms.txt
+- [x] T016 展開狀態的「收合 ▴」與「收合偵測清單」改為實心主色（FR-019）
