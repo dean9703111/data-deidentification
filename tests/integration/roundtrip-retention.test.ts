@@ -3,7 +3,7 @@ import { detect } from '../../src/core/detector';
 import { applyRedactions } from '../../src/core/redactor';
 import { restore } from '../../src/core/restorer';
 import { BUILTIN_PATTERNS } from '../../src/core/patterns';
-import { SUGGESTED_RETENTION } from '../../src/core/retention';
+import { SUGGESTED_RETENTION } from '../helpers/retention-fixtures';
 import { parseDocx, generateDocx } from '../../src/formats/docx';
 import { parseXlsx, generateXlsx } from '../../src/formats/xlsx';
 import { buildDocx, toFile, SAMPLE_DOCX_SPEC } from '../helpers/docx-builder';

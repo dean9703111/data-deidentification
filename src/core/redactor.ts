@@ -21,6 +21,12 @@ export function outputFor(it: RedactionItem): string {
   return prefix + buildMarker(it.category, it.code) + suffix;
 }
 
+/** On-screen stand-in for the output: kept prefix + [類別] + kept suffix (the code only differs). */
+export function previewLabel(it: RedactionItem): string {
+  const { prefix, suffix } = splitItem(it);
+  return `${prefix}[${it.category}]${suffix}`;
+}
+
 export function isPartial(it: RedactionItem): boolean {
   return Boolean(it.head || it.tail);
 }

@@ -13,15 +13,6 @@ const NONE: Split = { head: 0, tail: 0 };
 const CITY_RE = new RegExp(`^${CITIES}`, 'u');
 const DISTRICT_RE = /^[一-龥]{1,4}?[鄉鎮市區]/u;
 
-/** Builtin rules ship with a suggestion the user can apply; nothing is kept until they do. */
-export const SUGGESTED_RETENTION: Record<string, Retention> = {
-  'zh-name': { mode: 'surname' },
-  'tw-id': { mode: 'ends', head: 2, tail: 0 },
-  'tw-mobile': { mode: 'ends', head: 0, tail: 3 },
-  email: { mode: 'delim', delimiter: '@', side: 'after' },
-  'tw-address': { mode: 'district' },
-};
-
 export function modesFor(category: Category): RetentionMode[] {
   const modes: RetentionMode[] = ['none', 'ends', 'delim'];
   if (category === '姓名') modes.push('surname');
@@ -37,7 +28,7 @@ export const MODE_LABELS: Record<RetentionMode, string> = {
   surname: '保留姓氏',
   city: '保留到縣市',
   district: '保留到縣市＋鄉鎮市區',
-  preview: '同預覽遮罩',
+  preview: '部分保留（標準）',
 };
 
 export function describeRetention(r: Retention | undefined): string {
@@ -163,7 +154,7 @@ export interface RetentionCheck {
 /** Validates a retention setting against the rule's example value (FR-013–FR-015). */
 export function checkRetention(example: string, r: Retention, category: Category = '識別碼'): RetentionCheck {
   const warnings: string[] = [];
-  if (r.mode === 'preview') warnings.push('同預覽遮罩會露出較多字元（例如手機 10 碼露出 7 碼），接收方較容易辨識出個人。');
+  if (r.mode === 'preview') warnings.push('部分保留（標準）會露出較多字元（例如手機 10 碼露出 7 碼），接收方較容易辨識出個人。');
   if (r.mode === 'ends') {
     if (!Number.isInteger(r.head) || !Number.isInteger(r.tail) || r.head < 0 || r.tail < 0) return { error: '保留位數必須是 0 以上的整數', warnings };
     if (r.head > 0 && r.tail > 0) warnings.push('前後同時保留，搭配其他欄位時較容易辨識出個人。');

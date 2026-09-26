@@ -188,13 +188,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 .toast-error { background: var(--danger); }
 .toast-success { background: #2e9e5b; }
 
-/* Category legend + preview tooltip */
-.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0 0 0.6rem; font-size: 0.82rem; }
-.legend-title { color: var(--muted); }
-.legend-chip { padding: 0.1rem 0.55rem; border-radius: 4px; border: 1px solid transparent; cursor: pointer; font: inherit; font-size: 0.82rem; color: var(--text); }
-.legend-chip:hover { border-color: #9aa3b2; }
-.legend-chip.legend-off { text-decoration: line-through; text-decoration-thickness: 2px; opacity: 0.55; background: #e8ebf0 !important; }
-.legend-toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 0.3rem; color: var(--muted); cursor: pointer; }
+/* Preview tooltip */
 .has-tip { cursor: help; }
 .tooltip {
   position: fixed; z-index: 60; background: #1f2430; color: #fff; padding: 0.4rem 0.6rem; border-radius: 6px;
@@ -211,8 +205,6 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 .paste-divider::before, .paste-divider::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
 .paste-area { font-family: inherit; line-height: 1.6; resize: vertical; }
 .paste-actions { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; flex-wrap: wrap; }
-.legend-toggles { margin-left: auto; display: inline-flex; gap: 0.9rem; }
-.legend-toggles .legend-toggle { margin-left: 0; }
 
 .doc-page {
   background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 2.2rem 2.6rem; max-width: 820px; margin: 0 auto;
@@ -346,19 +338,13 @@ body:has(.site-info-dialog[open]) { overflow: hidden; }
 .link-btn:hover { text-decoration: underline; }
 
 /* Partial retention & shared codes (specs/002) */
-.btn-kept { border-color: var(--primary); color: var(--primary); }
-.retention-row > td { background: var(--bg); }
-.retention-editor { display: grid; gap: 0.5rem; padding: 0.5rem 0.25rem; }
-.retention-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .retention-fields { display: inline-flex; align-items: center; gap: 0.25rem; }
 .retention-fields[hidden] { display: none; }
 .input-num { width: 4.5rem; }
-.retention-preview { font-size: 0.85rem; }
 .code-options { margin-top: 1rem; }
 .code-options summary { cursor: pointer; font-weight: 600; }
 .code-options-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.5rem 0; }
 .output-panel { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; background: var(--surface); }
-.output-panel-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
 .output-panel p { margin: 0.35rem 0 0; }
 .output-table td { vertical-align: middle; }
 
@@ -370,8 +356,6 @@ body:has(.site-info-dialog[open]) { overflow: hidden; }
 .add-popup { max-width: min(360px, calc(100vw - 16px)); }
 .output-table { min-width: 0; }
 .output-table .select { width: auto; max-width: 100%; }
-/* The retention editor lives in a row of a horizontally scrolling table: pin it to the visible area. */
-.retention-editor { position: sticky; left: 0; max-width: calc(100vw - 4rem); }
 
 @media (max-width: 700px) {
   .header { padding: 0.6rem 1rem; gap: 0.5rem; }
@@ -388,5 +372,33 @@ body:has(.site-info-dialog[open]) { overflow: hidden; }
   .output-table td, .output-table td.col-nowrap { border: 0; padding: 0.15rem 0; white-space: normal; }
   .output-table .select { width: 100%; }
 }
-.output-panel-head .legend-toggle { margin: 0; }
-.retention-editor .select { width: auto; max-width: 100%; }
+
+/* UX simplification (specs/003) */
+.tag-kept { background: #eef3ff; color: var(--primary); }
+.check-label { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+.preview-head-tools { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.output-panel-summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem; }
+.output-panel[open] .output-panel-summary { margin-bottom: 0.5rem; }
+.output-modes { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+.mode-option { display: flex; align-items: flex-start; gap: 0.4rem; border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.7rem; cursor: pointer; }
+.mode-option > span { display: flex; flex-direction: column; gap: 0.1rem; }
+.mode-option:has(input:checked) { border-color: var(--primary); background: #eef3ff; }
+.output-subhead { margin: 0.75rem 0 0.25rem; font-size: 0.9rem; }
+.output-panel .table-wrap { margin-bottom: 0.5rem; }
+.retention-control { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.status-line { justify-content: flex-start; }
+.status-info { color: var(--primary); cursor: help; }
+.menu { position: relative; }
+.menu > summary { list-style: none; cursor: pointer; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 15; min-width: 12rem; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); padding: 0.3rem; }
+.menu-item { border: 0; background: transparent; text-align: left; padding: 0.45rem 0.6rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; color: var(--text); white-space: nowrap; }
+.menu-item:hover { background: var(--bg); }
+@media (max-width: 700px) {
+  .mode-option { flex: 1 1 100%; }
+  .menu { flex: 1 1 auto; }
+  .menu > summary { display: block; text-align: center; }
+  .menu { flex-basis: 100%; }
+  .menu-list { position: static; margin-top: 0.3rem; box-shadow: none; min-width: 0; }
+  .menu-item { white-space: normal; }
+}

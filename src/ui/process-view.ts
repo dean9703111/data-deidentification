@@ -1,11 +1,10 @@
 import type { Category, LoadedDocument, MappingEntry, RedactionItem, Retention } from '../core/types';
 import { CATEGORIES } from '../core/types';
 import { addManualItem, detect, resplitItems, toggleItem } from '../core/detector';
-import { applyRedactions, isPartial, mergeMappings, outputFor } from '../core/redactor';
+import { applyRedactions, isPartial, mergeMappings, outputFor, previewLabel } from '../core/redactor';
 import { CodeBook, parseMarkers } from '../core/codes';
-import { maskItem } from '../core/mask';
 import { parseMapping, serializeMapping } from '../core/csv';
-import { getEffectivePatterns } from '../core/pattern-store';
+import { getEffectivePatterns, loadConfig, saveConfig, setCategoryRetention } from '../core/pattern-store';
 import { MODE_LABELS, checkRetention, describeRetention, modesFor, splitFor, type RetentionMode } from '../core/retention';
 import { ACCEPT_ATTR, formatLimitations, generateDocument, mappingFileName, outputFileName, parseDocument } from '../formats';
 import { button, clear, downloadBlob, dropZone, el, toast, withBusy } from './components';
@@ -15,34 +14,41 @@ import { SAMPLES, samplesSection } from './samples';
 
 export const MAX_FILES = 10;
 
-/** 全部編碼 hides every value; 同預覽 keeps what the preview mask shows; 自訂 follows rules plus per-category overrides. */
+/** 全部隱藏 hides every value; 部分保留 keeps the standard visible characters; 自訂 is set per category. */
 type OutputMode = 'code' | 'preview' | 'custom';
-const OUTPUT_MODE_LABELS: Record<OutputMode, string> = { code: '全部編碼', preview: '同預覽', custom: '自訂' };
+const OUTPUT_MODE_LABELS: Record<OutputMode, string> = { code: '全部隱藏', preview: '部分保留', custom: '自訂' };
+const OUTPUT_MODE_EXAMPLES: Record<OutputMode, string> = {
+  code: 'A123456789 → [身分證]',
+  preview: 'A123456789 → A12[身分證]9',
+  custom: '逐類別設定',
+};
 
 /** One uploaded (or pasted) document and everything the user has done to it. */
 interface DocState {
   doc: LoadedDocument;
   items: RedactionItem[];
   book: CodeBook;
-  downloadedDoc: boolean;
-  downloadedCsv: boolean;
+  /** Bumped on every change that alters the output; downloads remember the version they were made from. */
+  version: number;
+  docVer: number;
+  csvVer: number;
 }
 
 interface State {
   docs: DocState[];
   /** Index into `docs` of the document shown in the preview. */
   active: number;
-  /** Preview shows the real `[類別:編碼]` output marker instead of the friendly mask. */
-  showMarkers: boolean;
   /** Ignore the document layout (Word/Excel/PDF) and preview as plain text. */
   plainView: boolean;
-  /** Categories switched off from the legend (applies to every document). */
+  /** Categories switched off in the category table (applies to every document). */
   disabledCategories: Set<Category>;
   /** The detection list is collapsed by default. */
   showList: boolean;
-  /** Every document shares one code book (chosen before uploading, fixed until 全部清除). */
+  /** The output settings panel is collapsed to a one-line summary by default. */
+  panelOpen: boolean;
+  /** Every document shares one code book. */
   sharedCodes: boolean;
-  /** Mapping table imported before uploading; its codes are reused for identical values. */
+  /** Imported mapping table; its codes are reused for identical values. */
   imported: { fileName: string; entries: MappingEntry[] } | null;
   /** The batch-wide book while sharedCodes is on; created with the first document. */
   sharedBook: CodeBook | null;
@@ -55,10 +61,10 @@ interface State {
 const state: State = {
   docs: [],
   active: 0,
-  showMarkers: false,
   plainView: false,
   disabledCategories: new Set(),
   showList: false,
+  panelOpen: false,
   sharedCodes: false,
   imported: null,
   sharedBook: null,
@@ -72,11 +78,10 @@ function ruleRetention(category: Category): Retention | undefined {
   return r && r.mode !== 'none' ? r : undefined;
 }
 
-/** What an item keeps under the current output mode; manual items keep the retention picked when adding them. */
+/** What an item keeps under the current output mode; manual items follow their category like detected ones. */
 function effectiveRetention(it: RedactionItem): Retention | undefined {
   if (state.outputMode === 'code') return undefined;
   if (state.outputMode === 'preview') return { mode: 'preview' };
-  if (it.origin === 'manual') return it.retention;
   return state.overrides.get(it.category) ?? it.retention;
 }
 
@@ -100,6 +105,13 @@ function bookForNewDoc(): CodeBook {
   return book;
 }
 
+/** Code scope changed mid-way: give every document a fresh book and reassign all codes. */
+function rebuildBooks(): void {
+  state.sharedBook = null;
+  for (const d of state.docs) d.book = bookForNewDoc();
+  applyOutputModeToAll();
+}
+
 /** A batch-wide table is offered whenever codes can repeat across files or continue an earlier table. */
 const hasMergedTable = (): boolean => state.sharedCodes || state.imported !== null;
 
@@ -110,9 +122,10 @@ function mergedMapping(): MappingEntry[] {
 const current = (): DocState => state.docs[state.active];
 
 function markDirty(d: DocState): void {
-  d.downloadedDoc = false;
-  d.downloadedCsv = false;
+  d.version++;
 }
+
+const isDownloaded = (d: DocState): boolean => d.docVer === d.version && d.csvVer === d.version;
 
 function tooltipFor(it: RedactionItem): string {
   return `${it.category}｜原文：${it.original}｜輸出標記：${outputFor(it)}${it.origin === 'manual' ? '｜手動新增' : ''}`;
@@ -134,13 +147,13 @@ function setCategoryEnabled(category: Category, enabled: boolean): void {
   }
 }
 
-/** Newly detected items honour the categories switched off in the legend. */
+/** Newly detected items honour the categories switched off in the category table. */
 function applyDisabledCategories(d: DocState): void {
   for (const it of d.items) if (state.disabledCategories.has(it.category)) it.active = false;
 }
 
 export function hasUnsavedResults(): boolean {
-  return state.docs.some((d) => d.items.some((it) => it.active) && !(d.downloadedDoc && d.downloadedCsv));
+  return state.docs.some((d) => d.items.some((it) => it.active) && !isDownloaded(d));
 }
 
 export function createProcessView(): HTMLElement {
@@ -170,7 +183,7 @@ async function importFiles(files: File[], root: HTMLElement): Promise<void> {
     try {
       const doc = await parseDocument(file);
       const book = bookForNewDoc();
-      const d: DocState = { doc, items: detect(doc.text, getEffectivePatterns(), book), book, downloadedDoc: false, downloadedCsv: false };
+      const d: DocState = { doc, items: detect(doc.text, getEffectivePatterns(), book), book, version: 0, docVer: -1, csvVer: -1 };
       applyOutputMode(d);
       applyDisabledCategories(d);
       state.docs.push(d);
@@ -205,7 +218,7 @@ function redetect(root: HTMLElement): void {
 
 function removeDoc(index: number, root: HTMLElement): void {
   const d = state.docs[index];
-  if (d.items.some((it) => it.active) && !(d.downloadedDoc && d.downloadedCsv) && !confirm(`「${d.doc.fileName}」尚未下載去識別化結果與編碼表，確定要移除嗎？`)) return;
+  if (d.items.some((it) => it.active) && !isDownloaded(d) && !confirm(`「${d.doc.fileName}」尚未下載去識別化結果與編碼表，確定要移除嗎？`)) return;
   state.docs.splice(index, 1);
   state.active = Math.min(state.active, Math.max(0, state.docs.length - 1));
   render(root);
@@ -236,7 +249,10 @@ function render(root: HTMLElement): void {
         onFiles: (files) => void loadFiles(files, root),
       }),
       renderPasteBox(root),
-      renderCodeOptions(root),
+      el('details', { class: 'code-options', open: state.sharedCodes || state.imported !== null },
+        el('summary', {}, '進階：跨檔案共用編碼'),
+        renderCodeScope(root),
+      ),
       samplesSection('沒有檔案？用範例體驗', SAMPLES, (file) => loadFiles([file], root)),
     );
     return;
@@ -244,12 +260,23 @@ function render(root: HTMLElement): void {
   root.append(renderToolbar(root), renderWorkspace(root));
 }
 
-/** Code-scope options; they only apply before the first upload so a batch never mixes scopes (FR-022). */
-function renderCodeOptions(root: HTMLElement): HTMLElement {
+/**
+ * Code scope (shared across the batch / continued from an imported table). Can be changed at any
+ * time: once documents are loaded every code is reassigned and the files need downloading again.
+ */
+function renderCodeScope(root: HTMLElement): HTMLElement {
+  const changed = (msg: string) => {
+    if (state.docs.length) {
+      rebuildBooks();
+      toast(`${msg}；所有檔案的編碼已重新配置，請重新下載`, 'info', 5000);
+    }
+    render(root);
+  };
   const shared = el('input', { type: 'checkbox' }) as HTMLInputElement;
   shared.checked = state.sharedCodes;
   shared.addEventListener('change', () => {
     state.sharedCodes = shared.checked;
+    changed(shared.checked ? '已開啟整批共用編碼' : '已關閉整批共用編碼');
   });
   const input = el('input', { type: 'file', accept: '.csv,text/csv', hidden: true }) as HTMLInputElement;
   input.addEventListener('change', async () => {
@@ -263,23 +290,24 @@ function renderCodeOptions(root: HTMLElement): HTMLElement {
     }
     const warnings = new CodeBook().seed(entries);
     state.imported = { fileName: file.name, entries };
-    toast(`已匯入 ${entries.length} 筆編碼，相同的值會沿用原編碼`, 'success');
     for (const w of warnings.slice(0, 3)) toast(w, 'error', 8000);
-    render(root);
+    changed(`已匯入 ${entries.length} 筆編碼，相同的值會沿用原編碼`);
   });
   return el(
-    'details',
-    { class: 'code-options', open: state.sharedCodes || state.imported !== null },
-    el('summary', {}, '進階：跨檔案共用編碼'),
-    el('label', { class: 'legend-toggle' }, shared, ' 整批共用編碼：同一批檔案中，相同的值使用同一個編碼（方便跨檔案對照）'),
+    'div',
+    { class: 'code-scope' },
+    el('label', { class: 'check-label' }, shared, ' 整批共用編碼：同一批檔案中，相同的值使用同一個編碼（方便跨檔案對照）'),
     el('div', { class: 'code-options-row' },
       button(state.imported ? '改匯入其他編碼表' : '匯入既有編碼表（沿用編碼）', () => input.click(), 'btn btn-small'),
       state.imported
-        ? el('span', {}, ` 已匯入「${state.imported.fileName}」共 ${state.imported.entries.length} 筆 `, button('移除', () => { state.imported = null; render(root); }, 'btn btn-ghost btn-small'))
+        ? el('span', {}, ` 已匯入「${state.imported.fileName}」共 ${state.imported.entries.length} 筆 `, button('移除', () => {
+            state.imported = null;
+            changed('已移除匯入的編碼表');
+          }, 'btn btn-ghost btn-small'))
         : null,
       input,
     ),
-    el('p', { class: 'muted small' }, '匯入上次下載的編碼表（或合併編碼表）後，本次出現的相同值會沿用原編碼，新值才產生新編碼，可用於每月資料串接。注意：合併編碼表會累積歷次所有個資，是需要長期妥善保管的敏感檔案。匯入的編碼表只存在這個分頁的記憶體中。以上選項需在上傳前設定，開始處理後要變更請先「全部清除」。'),
+    el('p', { class: 'muted small' }, '匯入上次下載的編碼表（或合併編碼表）後，相同的值會沿用原編碼，新值才產生新編碼，可用於每月資料串接。合併編碼表會累積歷次所有個資，請長期妥善保管；匯入的編碼表只存在這個分頁的記憶體中。'),
   );
 }
 
@@ -306,14 +334,33 @@ function renderPasteBox(root: HTMLElement): HTMLElement {
   );
 }
 
+/** A small dropdown of secondary actions; closes after picking one. */
+function menu(label: string, items: ([string, () => void] | null)[]): HTMLElement {
+  const box = el('details', { class: 'menu' }) as HTMLDetailsElement;
+  const list = el('div', { class: 'menu-list' });
+  for (const it of items) {
+    if (!it) continue;
+    list.append(button(it[0], () => {
+      box.open = false;
+      it[1]();
+    }, 'menu-item'));
+  }
+  box.append(el('summary', { class: 'btn' }, label), list);
+  return box;
+}
+
 function renderToolbar(root: HTMLElement): HTMLElement {
   const d = current();
   const doc = d.doc;
   const limits = formatLimitations(doc.format);
   const many = state.docs.length > 1;
   const partialCats = [...new Set(d.items.filter((it) => it.active && isPartial(it)).map((it) => it.category))];
-  const modes = [state.sharedCodes ? '整批共用編碼' : '', state.imported ? `沿用「${state.imported.fileName}」的編碼` : ''].filter(Boolean);
-  const outputTag = el('span', { class: 'tag' }, `輸出方式：${OUTPUT_MODE_LABELS[state.outputMode]}`);
+  const status = [
+    `輸出方式：${OUTPUT_MODE_LABELS[state.outputMode]}`,
+    state.sharedCodes ? '整批共用編碼' : '',
+    state.imported ? `沿用「${state.imported.fileName}」的編碼` : '',
+  ].filter(Boolean);
+  const text = doc.format === 'txt' || doc.format === 'md';
   return el(
     'div',
     { class: 'toolbar toolbar-stack' },
@@ -327,30 +374,32 @@ function renderToolbar(root: HTMLElement): HTMLElement {
       el('div', { class: 'toolbar-actions' },
         button('重新偵測', () => redetect(root), 'btn'),
         button(many ? '全部清除' : '換一個檔案', () => resetAll(root), 'btn btn-ghost'),
-        el('span', { class: 'toolbar-sep' }),
-        button(many ? '下載此檔' : '下載去識別化文件', () => void downloadDoc(d), 'btn btn-primary'),
-        button(many ? '下載此檔編碼表' : '下載編碼表 (CSV)', () => downloadCsv(d), 'btn btn-primary'),
-        doc.format === 'txt' || doc.format === 'md' ? button('複製去識別化文字', () => void copyText(d), 'btn') : null,
-        hasMergedTable() ? button('下載合併編碼表', downloadMerged, 'btn btn-primary') : null,
-        many ? button(`打包下載全部（${state.docs.length} 個檔案 + 編碼表）`, () => void downloadAll(root), 'btn btn-primary btn-strong') : null,
+        many
+          ? button(`打包下載全部（${state.docs.length} 個檔案）`, () => void downloadAll(root), 'btn btn-primary btn-strong')
+          : button('下載（文件＋編碼表）', () => void downloadBoth(d, root), 'btn btn-primary btn-strong'),
+        menu('更多 ▾', [
+          many ? ['下載此檔（文件＋編碼表）', () => void downloadBoth(d, root)] : null,
+          ['只下載去識別化文件', () => void downloadDoc(d, root)],
+          ['只下載編碼表 (CSV)', () => downloadCsv(d, root)],
+          text ? ['複製去識別化文字', () => void copyText(d)] : null,
+          hasMergedTable() ? ['下載合併編碼表', downloadMerged] : null,
+        ]),
       ),
     ),
-    el('div', { class: 'toolbar-row muted small' },
-      el('span', {}, '編碼表是還原的唯一憑證，請妥善保管。'),
-      outputTag,
-      modes.length ? el('span', { class: 'tag' }, `${modes.join('・')}（要變更請先全部清除）`) : null,
-      partialCats.length ? el('span', { class: 'notice notice-inline' }, `本文件含部分保留欄位：${partialCats.join('、')}（保留的字元會出現在輸出中，並非完全匿名）`) : null,
-      limits ? el('span', { class: 'notice notice-inline' }, limits) : null,
+    el('div', { class: 'toolbar-row status-line muted small' },
+      el('span', {}, `編碼表是還原的唯一憑證，請妥善保管。${status.join('・')}`,
+        limits ? el('span', { class: 'status-info', 'data-tip': limits, tabindex: '0' }, ' ⓘ 格式限制') : null,
+      ),
+      partialCats.length ? el('span', { class: 'notice notice-inline' }, `⚠ 含部分保留欄位：${partialCats.join('、')}（保留的字元會出現在輸出中，並非完全匿名）`) : null,
     ),
   );
 }
 
-function renderFilePanel(root: HTMLElement, refresh: () => void): HTMLElement {
+function renderFilePanel(root: HTMLElement): HTMLElement {
   const panel = el('aside', { class: 'file-panel' });
   const list = el('ul', { class: 'file-list' });
   state.docs.forEach((d, i) => {
     const active = d.items.filter((it) => it.active).length;
-    const done = d.downloadedDoc && d.downloadedCsv;
     list.append(
       el(
         'li',
@@ -360,7 +409,7 @@ function renderFilePanel(root: HTMLElement, refresh: () => void): HTMLElement {
           el('span', { class: 'file-item-meta' },
             el('span', { class: 'badge' }, d.doc.format.toUpperCase()),
             el('span', { class: 'muted small' }, ` ${active} / ${d.items.length} 筆`),
-            done ? el('span', { class: 'tag tag-done' }, '已下載') : null,
+            isDownloaded(d) ? el('span', { class: 'tag tag-done' }, '已下載') : null,
           ),
         ),
         el('button', { type: 'button', class: 'file-item-remove', title: '移除此檔案', onClick: () => removeDoc(i, root) }, '×'),
@@ -378,7 +427,6 @@ function renderFilePanel(root: HTMLElement, refresh: () => void): HTMLElement {
     state.docs.length < MAX_FILES ? button('＋ 加入檔案', () => input.click(), 'btn btn-small') : el('p', { class: 'muted small' }, `已達 ${MAX_FILES} 個上限`),
     input,
   );
-  void refresh;
   return panel;
 }
 
@@ -386,29 +434,32 @@ function renderWorkspace(root: HTMLElement): HTMLElement {
   const d = current();
   const preview = el('div', { class: 'preview', tabindex: '0' });
   const sidebar = el('aside', { class: 'sidebar' });
-  const legendHost = el('div', {});
   const outputHost = el('div', {});
-  const listToggleHost = el('div', { class: 'list-toggle-host' });
+  const headTools = el('div', { class: 'preview-head-tools' });
   const previewWrap = el('div', { class: 'preview-wrap' },
-    el('div', { class: 'preview-head' }, el('h3', {}, '去識別化預覽'), listToggleHost),
-    el('p', { class: 'muted small' }, `${previewHint(d.doc)}預覽以遮罩樣式呈現（如 王OO、0912-***-678）；滑鼠移到標記可看原文與輸出標記，點擊標記可取消；圈選文字可手動新增項目。`),
+    el('div', { class: 'preview-head' }, el('h3', {}, '去識別化預覽'), headTools),
+    el('p', { class: 'muted small' }, `${previewHint(d.doc)}預覽即下載後的樣子（編碼以 [類別] 表示）；滑鼠移到標記可看原文與實際編碼，點擊標記可取消，圈選文字可手動新增。`),
     outputHost,
-    legendHost,
     preview,
   );
   const ws = el('div', { class: 'workspace' });
   const refresh = () => {
     clear(outputHost);
     outputHost.append(renderOutputPanel(root));
-    clear(legendHost);
-    legendHost.append(renderLegend(refresh));
-    clear(listToggleHost);
+    clear(headTools);
     const active = d.items.filter((it) => it.active).length;
-    listToggleHost.append(
+    const plain = el('input', { type: 'checkbox' }) as HTMLInputElement;
+    plain.checked = state.plainView;
+    plain.addEventListener('change', () => {
+      state.plainView = plain.checked;
+      refresh();
+    });
+    if (d.doc.layout) headTools.append(el('label', { class: 'check-label small' }, plain, ' 純文字檢視'));
+    headTools.append(
       button(`${state.showList ? '▾ 收合' : '▸ 展開'}偵測清單（生效 ${active} / 共 ${d.items.length}）`, () => {
         state.showList = !state.showList;
         refresh();
-      }, 'btn btn-small'),
+      }, 'btn btn-small list-toggle'),
     );
     ws.classList.toggle('workspace-with-list', state.showList);
     ws.classList.toggle('workspace-with-files', state.docs.length > 1);
@@ -416,145 +467,150 @@ function renderWorkspace(root: HTMLElement): HTMLElement {
     renderPreview(preview, refresh, root);
     if (state.showList) renderSidebar(sidebar, preview, refresh);
   };
-  if (state.docs.length > 1) ws.append(renderFilePanel(root, refresh));
+  if (state.docs.length > 1) ws.append(renderFilePanel(root));
   ws.append(previewWrap, sidebar);
   refresh();
   return ws;
 }
 
 /**
- * One place to decide how much of each value stays visible in the output: 全部編碼, 同預覽 (the
- * preview mask with the code in place of the stars), or 自訂 per category. Applies to every file.
+ * The single place to decide what the output shows: mode, per-category on/off and retention,
+ * 設為預設, and the code scope. Collapsed to a one-line summary by default.
  */
 function renderOutputPanel(root: HTMLElement): HTMLElement {
   const setMode = (mode: OutputMode) => {
     state.outputMode = mode;
     applyOutputModeToAll();
-    render(root); // preview, toolbar tag and partial-retention notice all change
+    render(root); // preview, toolbar status and partial-retention notice all change
   };
   const radios = (Object.keys(OUTPUT_MODE_LABELS) as OutputMode[]).map((mode) => {
     const r = el('input', { type: 'radio', name: 'output-mode', value: mode }) as HTMLInputElement;
     r.checked = state.outputMode === mode;
     r.addEventListener('change', () => setMode(mode));
-    return el('label', { class: 'legend-toggle' }, r, ` ${OUTPUT_MODE_LABELS[mode]}`);
+    return el('label', { class: 'mode-option' }, r, el('span', {}, el('strong', {}, OUTPUT_MODE_LABELS[mode]), el('span', { class: 'mono small muted' }, OUTPUT_MODE_EXAMPLES[mode])));
   });
-  const hint: Record<OutputMode, string> = {
-    code: '每筆敏感資訊整筆換成 [類別:編碼]，最安全。',
-    preview: '保留預覽遮罩看得到的字元，中間換成編碼，例如 王[姓名:a3f9c2]、A12[身分證:7b21e8]9、0912-[手機:c882d1]-678。⚠ 露出的字元較多（手機 10 碼露出 7 碼），接收方較容易辨識出個人。',
-    custom: '每個類別各自決定保留多少；預設沿用「偵測規則」頁的設定，這裡的調整只影響本次處理的檔案。',
+  const active = state.docs.reduce((n, d) => n + d.items.filter((it) => it.active).length, 0);
+  const box = el('details', { class: 'output-panel', open: state.panelOpen }) as HTMLDetailsElement;
+  box.addEventListener('toggle', () => {
+    state.panelOpen = box.open;
+  });
+  const saveDefault = () => {
+    let config = loadConfig();
+    for (const [category, r] of state.overrides) config = setCategoryRetention(config, category, r);
+    saveConfig(config);
+    // The saved default is now each item's own rule retention, so the output stays the same after clearing overrides.
+    for (const d of state.docs) {
+      for (const it of d.items) {
+        const r = state.overrides.get(it.category);
+        if (!r) continue;
+        if (r.mode === 'none') delete it.retention;
+        else it.retention = r;
+      }
+    }
+    state.overrides.clear();
+    toast('已設為預設：之後選「自訂」會套用這些保留方式（可在「偵測規則」頁的「保留」欄查看）', 'success', 5000);
+    render(root);
   };
-  return el(
-    'div',
-    { class: 'output-panel' },
-    el('div', { class: 'output-panel-head' }, el('strong', {}, '輸出方式：'), ...radios),
-    el('p', { class: `small ${state.outputMode === 'preview' ? 'notice notice-inline' : 'muted'}` }, hint[state.outputMode]),
-    state.outputMode === 'custom' ? renderCategoryTable(root) : null,
-  );
+  const children: (HTMLElement | null)[] = [
+    el('summary', { class: 'output-panel-summary' },
+      el('strong', {}, '輸出方式：'),
+      `${OUTPUT_MODE_LABELS[state.outputMode]}・生效 ${active} 筆`,
+      state.sharedCodes || state.imported ? '・共用／沿用編碼' : '',
+      el('span', { class: 'muted small' }, '（點擊調整類別、保留方式與編碼範圍）'),
+    ),
+    el('div', { class: 'output-modes' }, ...radios),
+    state.outputMode === 'preview'
+      ? el('p', { class: 'small notice notice-inline' }, '⚠ 部分保留會露出較多字元（例如手機 10 碼露出 7 碼），接收方較容易辨識出個人。')
+      : null,
+    renderCategoryTable(root),
+    state.outputMode === 'custom'
+      ? el('div', { class: 'form-actions' },
+          button('設為預設', saveDefault, 'btn btn-small'),
+          el('span', { class: 'muted small' }, state.overrides.size ? '把目前各類別的保留方式存為預設，之後選「自訂」會自動套用。' : '目前沿用預設值。'),
+        )
+      : null,
+    el('h4', { class: 'output-subhead' }, '編碼範圍'),
+    renderCodeScope(root),
+  ];
+  box.append(...children.filter((c): c is HTMLElement => c !== null));
+  return box;
 }
 
 function renderCategoryTable(root: HTMLElement): HTMLElement {
   const present = CATEGORIES.filter((c) => state.docs.some((d) => d.items.some((it) => it.category === c)));
   if (present.length === 0) return el('p', { class: 'muted small' }, '目前沒有偵測項目。');
+  const custom = state.outputMode === 'custom';
   const rows = present.map((category) => {
-    const sample = state.docs.flatMap((d) => d.items).find((it) => it.category === category)!.original;
+    const items = state.docs.flatMap((d) => d.items).filter((it) => it.category === category);
+    const sample = items[0].original;
+    const off = state.disabledCategories.has(category);
+    const enabled = el('input', { type: 'checkbox', title: '取消勾選即整類不去識別化（套用到所有檔案）' }) as HTMLInputElement;
+    enabled.checked = !off;
+    enabled.addEventListener('change', () => {
+      setCategoryEnabled(category, enabled.checked);
+      render(root);
+    });
     const override = state.overrides.get(category);
-    const current: Retention = override ?? ruleRetention(category) ?? { mode: 'none' };
-    const modes = modesFor(category);
-    const mode = el('select', { class: 'select' },
-      el('option', { value: 'rule' }, `依規則（${describeRetention(ruleRetention(category))}）`),
-      ...modes.map((m) => el('option', { value: m }, MODE_LABELS[m])),
-    ) as HTMLSelectElement;
-    mode.value = override ? override.mode : 'rule';
-    const head = el('input', { class: 'input input-num', type: 'number', min: '0', value: String(current.mode === 'ends' ? current.head : 0) }) as HTMLInputElement;
-    const tail = el('input', { class: 'input input-num', type: 'number', min: '0', value: String(current.mode === 'ends' ? current.tail : 0) }) as HTMLInputElement;
-    const delim = el('input', { class: 'input input-num', value: current.mode === 'delim' ? current.delimiter : '@' }) as HTMLInputElement;
-    const side = el('select', { class: 'select' }, el('option', { value: 'after' }, '之後'), el('option', { value: 'before' }, '之前')) as HTMLSelectElement;
-    if (current.mode === 'delim') side.value = current.side;
-    const endsBox = el('span', { class: 'retention-fields', hidden: mode.value !== 'ends' }, '前 ', head, ' 後 ', tail);
-    const delimBox = el('span', { class: 'retention-fields', hidden: mode.value !== 'delim' }, delim, side);
+    const applied: Retention | undefined = state.outputMode === 'code' ? undefined : state.outputMode === 'preview' ? { mode: 'preview' } : override ?? ruleRetention(category);
     const out = el('span', { class: 'mono small' });
     const msg = el('span', { class: 'small' });
-    const read = (): Retention | null => {
-      const m = mode.value as RetentionMode | 'rule';
-      if (m === 'rule') return null;
-      if (m === 'ends') return { mode: 'ends', head: Number(head.value), tail: Number(tail.value) };
-      if (m === 'delim') return { mode: 'delim', delimiter: delim.value, side: side.value as 'before' | 'after' };
-      return { mode: m } as Retention;
-    };
     const show = (r: Retention | undefined) => {
       const s = splitFor(sample, r, category);
-      out.textContent = `${sample} → ${sample.slice(0, s.head)}[${category}:······]${sample.slice(sample.length - s.tail)}`;
+      out.textContent = `${sample} → ${sample.slice(0, s.head)}[${category}]${sample.slice(sample.length - s.tail)}`;
     };
-    const paint = (r: Retention | null): boolean => {
-      const check = r ? checkRetention(sample, r, category) : { error: null, warnings: [] };
-      msg.className = `small ${check.error ? 'field-error' : check.warnings.length ? 'notice notice-inline' : ''}`;
-      msg.textContent = check.error ?? (check.warnings.length ? `⚠ ${check.warnings.join(' ')}` : '');
-      show(r ?? ruleRetention(category));
-      return !check.error;
-    };
-    const apply = () => {
-      endsBox.hidden = mode.value !== 'ends';
-      delimBox.hidden = mode.value !== 'delim';
-      const r = read();
-      if (!paint(r)) return; // keep the invalid input on screen with its error, output unchanged
-      if (r) state.overrides.set(category, r);
-      else state.overrides.delete(category);
-      applyOutputModeToAll();
-      render(root);
-    };
-    for (const input of [mode, head, tail, delim, side]) input.addEventListener('change', apply);
-    paint(override ?? null);
-    return el('tr', {},
-      el('td', { class: 'col-nowrap' }, el('span', { class: `badge badge-${category}` }, category)),
-      el('td', { class: 'col-nowrap' }, mode, ' ', endsBox, delimBox),
+    show(applied);
+    let control: HTMLElement;
+    if (!custom || off) {
+      control = el('span', { class: 'muted small' }, off ? '不處理' : describeRetention(applied));
+    } else {
+      const current: Retention = override ?? ruleRetention(category) ?? { mode: 'none' };
+      const mode = el('select', { class: 'select' },
+        el('option', { value: 'rule' }, `預設（${describeRetention(ruleRetention(category))}）`),
+        ...modesFor(category).map((m) => el('option', { value: m }, MODE_LABELS[m])),
+      ) as HTMLSelectElement;
+      mode.value = override ? override.mode : 'rule';
+      const head = el('input', { class: 'input input-num', type: 'number', min: '0', value: String(current.mode === 'ends' ? current.head : 0) }) as HTMLInputElement;
+      const tail = el('input', { class: 'input input-num', type: 'number', min: '0', value: String(current.mode === 'ends' ? current.tail : 0) }) as HTMLInputElement;
+      const delim = el('input', { class: 'input input-num', value: current.mode === 'delim' ? current.delimiter : '@' }) as HTMLInputElement;
+      const side = el('select', { class: 'select' }, el('option', { value: 'after' }, '之後'), el('option', { value: 'before' }, '之前')) as HTMLSelectElement;
+      if (current.mode === 'delim') side.value = current.side;
+      const endsBox = el('span', { class: 'retention-fields', hidden: mode.value !== 'ends' }, '前 ', head, ' 後 ', tail);
+      const delimBox = el('span', { class: 'retention-fields', hidden: mode.value !== 'delim' }, delim, side);
+      const read = (): Retention | null => {
+        const m = mode.value as RetentionMode | 'rule';
+        if (m === 'rule') return null;
+        if (m === 'ends') return { mode: 'ends', head: Number(head.value), tail: Number(tail.value) };
+        if (m === 'delim') return { mode: 'delim', delimiter: delim.value, side: side.value as 'before' | 'after' };
+        return { mode: m } as Retention;
+      };
+      const paint = (r: Retention | null): boolean => {
+        const check = r ? checkRetention(sample, r, category) : { error: null, warnings: [] };
+        msg.className = `small ${check.error ? 'field-error' : check.warnings.length ? 'notice notice-inline' : ''}`;
+        msg.textContent = check.error ?? (check.warnings.length ? `⚠ ${check.warnings.join(' ')}` : '');
+        show(r ?? ruleRetention(category));
+        return !check.error;
+      };
+      const apply = () => {
+        endsBox.hidden = mode.value !== 'ends';
+        delimBox.hidden = mode.value !== 'delim';
+        const r = read();
+        if (!paint(r)) return; // keep the invalid input on screen with its error, output unchanged
+        if (r) state.overrides.set(category, r);
+        else state.overrides.delete(category);
+        applyOutputModeToAll();
+        render(root);
+      };
+      for (const input of [mode, head, tail, delim, side]) input.addEventListener('change', apply);
+      paint(override ?? null);
+      control = el('span', { class: 'retention-control' }, mode, endsBox, delimBox);
+    }
+    return el('tr', { class: off ? 'row-disabled' : '' },
+      el('td', { class: 'col-nowrap' }, el('label', { class: 'check-label' }, enabled, el('span', { class: `badge badge-${category}` }, category), el('span', { class: 'muted small' }, ` ${items.length} 筆`))),
+      el('td', {}, control),
       el('td', {}, out, ' ', msg),
     );
   });
   return el('div', { class: 'table-wrap' }, el('table', { class: 'table output-table' }, el('tbody', {}, ...rows)));
-}
-
-function renderLegend(refresh: () => void): HTMLElement {
-  const d = current();
-  const toggle = el('input', { type: 'checkbox' }) as HTMLInputElement;
-  toggle.checked = state.showMarkers;
-  toggle.addEventListener('change', () => {
-    state.showMarkers = toggle.checked;
-    refresh();
-  });
-  const plainToggle = el('input', { type: 'checkbox' }) as HTMLInputElement;
-  plainToggle.checked = state.plainView;
-  plainToggle.addEventListener('change', () => {
-    state.plainView = plainToggle.checked;
-    refresh();
-  });
-  const counts = new Map<Category, number>();
-  for (const it of d.items) counts.set(it.category, (counts.get(it.category) ?? 0) + 1);
-  return el(
-    'div',
-    { class: 'legend' },
-    el('span', { class: 'legend-title', title: '點擊種類可整批取消該類去識別化（套用到所有檔案），再點一次復原' }, '去識別化種類：'),
-    ...CATEGORIES.map((c) => {
-      const off = state.disabledCategories.has(c);
-      const n = counts.get(c) ?? 0;
-      return el(
-        'button',
-        {
-          type: 'button',
-          class: `legend-chip mark-${c}${off ? ' legend-off' : ''}`,
-          title: off ? `已取消全部「${c}」，點擊復原` : `點擊取消全部「${c}」（此檔 ${n} 筆）`,
-          onClick: () => {
-            setCategoryEnabled(c, off);
-            refresh();
-          },
-        },
-        n ? `${c} ${n}` : c,
-      );
-    }),
-    el('span', { class: 'legend-toggles' },
-      d.doc.layout ? el('label', { class: 'legend-toggle' }, plainToggle, ' 純文字檢視') : null,
-      el('label', { class: 'legend-toggle' }, toggle, ' 顯示實際輸出標記 [類別:編碼]'),
-    ),
-  );
 }
 
 function previewHint(doc: LoadedDocument): string {
@@ -574,15 +630,7 @@ function renderPreview(preview: HTMLElement, refresh: () => void, root: HTMLElem
   const d = current();
   const decorations: Decoration[] = d.items.map((it) =>
     it.active
-      ? {
-          start: it.start,
-          end: it.end,
-          id: it.id,
-          kind: 'mark',
-          label: state.showMarkers ? outputFor(it) : maskItem(it),
-          className: `mark-${it.category}${state.showMarkers ? ' mark-code' : ''}`,
-          tip: tooltipFor(it),
-        }
+      ? { start: it.start, end: it.end, id: it.id, kind: 'mark', label: previewLabel(it), className: `mark-${it.category}`, tip: tooltipFor(it) }
       : { start: it.start, end: it.end, id: it.id, kind: 'cancelled', label: '', className: '', tip: `已取消，顯示原文（${it.category}）；點擊可加回` },
   );
   renderDocumentPreview(preview, d.doc, decorations, { plain: state.plainView });
@@ -605,7 +653,7 @@ function showItemPopup(rect: DOMRect, item: RedactionItem, done: () => void, roo
     { class: 'add-popup' },
     el('div', { class: 'add-popup-text' },
       el('span', { class: `badge badge-${item.category}` }, item.category),
-      ` ${item.original} → ${maskItem(item)}`,
+      ` ${item.original} → ${previewLabel(item)}`,
       el('div', { class: 'muted small' }, `輸出標記 ${outputFor(item)}${item.origin === 'manual' ? '（手動新增）' : ''}`),
     ),
     el('div', { class: 'add-popup-row' },
@@ -668,38 +716,15 @@ function showAddPopup(rect: DOMRect, start: number, end: number, done: () => voi
   const d = current();
   const text = d.doc.text.slice(start, end);
   const select = el('select', { class: 'select' }, ...CATEGORIES.map((c) => el('option', { value: c }, c))) as HTMLSelectElement;
-  // FR-012: in 自訂 mode the item can pick its own retention, defaulting to the category's setting;
-  // in 全部編碼／同預覽 it simply follows the mode.
-  const custom = state.outputMode === 'custom';
-  const retentionSelect = el('select', { class: 'select', hidden: !custom }) as HTMLSelectElement;
-  const outPreview = el('div', { class: 'muted small mono' });
-  let choices: (Retention | undefined)[] = [];
-  const chosen = (): Retention | undefined =>
-    custom ? choices[Number(retentionSelect.value)] : state.outputMode === 'preview' ? { mode: 'preview' } : undefined;
-  const updatePreview = () => {
-    const s = splitFor(text, chosen(), select.value as Category);
-    outPreview.textContent = `輸出：${text.slice(0, s.head)}[${select.value}:······]${text.slice(text.length - s.tail)}`;
-  };
-  const refreshChoices = () => {
-    const category = select.value as Category;
-    const def = state.overrides.get(category) ?? ruleRetention(category);
-    choices = [def, ...([undefined, { mode: 'preview' }] as (Retention | undefined)[]).filter((r) => describeRetention(r) !== describeRetention(def))];
-    clear(retentionSelect);
-    retentionSelect.append(...choices.map((r, i) => el('option', { value: String(i) }, i === 0 ? `同類別設定：${describeRetention(r)}` : describeRetention(r))));
-    updatePreview();
-  };
-  select.addEventListener('change', refreshChoices);
-  retentionSelect.addEventListener('change', updatePreview);
-  refreshChoices();
   const popup = el(
     'div',
     { class: 'add-popup' },
     el('div', { class: 'add-popup-text' }, `「${text.length > 40 ? text.slice(0, 40) + '…' : text}」`),
-    el('div', { class: 'add-popup-row' }, select, retentionSelect),
-    outPreview,
-    el('div', { class: 'add-popup-row' }, button('新增為去識別化項目', () => {
+    el('div', { class: 'add-popup-row' }, select, button('新增為去識別化項目', () => {
       try {
-        addManualItem(d.items, d.doc.text, start, end, select.value as Category, d.book, custom ? chosen() : undefined);
+        // FR-009: manual items follow their category's retention, like detected ones.
+        const rule = getEffectivePatterns().find((p) => p.enabled && p.category === select.value);
+        addManualItem(d.items, d.doc.text, start, end, select.value as Category, d.book, rule?.retention);
         applyOutputMode(d);
         markDirty(d);
         popup.remove();
@@ -727,7 +752,7 @@ function renderSidebar(sidebar: HTMLElement, preview: HTMLElement, refresh: () =
       el('div', { class: 'item-main', title: tooltipFor(it), onClick: () => locate(preview, it.id) },
         el('span', { class: `badge badge-${it.category}` }, it.category),
         el('span', { class: 'item-original' }, it.original),
-        el('span', { class: 'item-mask muted' }, `→ ${maskItem(it)}`),
+        el('span', { class: 'item-mask muted' }, `→ ${previewLabel(it)}`),
         it.origin === 'manual' ? el('span', { class: 'tag' }, '手動') : null,
       ),
       el('div', { class: 'item-meta' }, button(it.active ? '取消' : '加回', () => {
@@ -760,26 +785,54 @@ function locate(preview: HTMLElement, id: string): void {
 // ---------------------------------------------------------------------------------------
 // Output
 // ---------------------------------------------------------------------------------------
-async function downloadDoc(d: DocState): Promise<void> {
+/** FR-002: a lone download whose partner was taken from an older version would not restore. */
+function warnIfStale(partnerVer: number, d: DocState, partner: string): void {
+  if (partnerVer >= 0 && partnerVer !== d.version) {
+    toast(`之前下載的${partner}是舊版本，和這次的檔案對不起來，請重新下載${partner}`, 'error', 8000);
+  }
+}
+
+async function saveDoc(d: DocState): Promise<void> {
+  const { edits } = applyRedactions(d.doc.text, d.items);
+  const blob = await generateDocument(d.doc, edits);
+  downloadBlob(blob, outputFileName(d.doc.fileName, 'deid'));
+  d.docVer = d.version;
+}
+
+function saveCsv(d: DocState): void {
+  const { mapping } = applyRedactions(d.doc.text, d.items);
+  downloadBlob(new Blob([serializeMapping(mapping)], { type: 'text/csv;charset=utf-8' }), mappingFileName(d.doc.fileName));
+  d.csvVer = d.version;
+}
+
+/** The main action: the document and its mapping table together, so the pair always matches. */
+async function downloadBoth(d: DocState, root: HTMLElement): Promise<void> {
   try {
-    const { edits } = applyRedactions(d.doc.text, d.items);
     toast('產生檔案中…', 'info', 2000);
-    const blob = await generateDocument(d.doc, edits);
-    downloadBlob(blob, outputFileName(d.doc.fileName, 'deid'));
-    d.downloadedDoc = true;
+    await saveDoc(d);
+    saveCsv(d);
+    toast('已下載去識別化文件與編碼表', 'success');
+    render(root);
   } catch (e) {
     toast((e as Error).message, 'error', 7000);
   }
 }
 
-function csvBlob(d: DocState): Blob {
-  const { mapping } = applyRedactions(d.doc.text, d.items);
-  return new Blob([serializeMapping(mapping)], { type: 'text/csv;charset=utf-8' });
+async function downloadDoc(d: DocState, root: HTMLElement): Promise<void> {
+  try {
+    toast('產生檔案中…', 'info', 2000);
+    await saveDoc(d);
+    warnIfStale(d.csvVer, d, '編碼表');
+    render(root);
+  } catch (e) {
+    toast((e as Error).message, 'error', 7000);
+  }
 }
 
-function downloadCsv(d: DocState): void {
-  downloadBlob(csvBlob(d), mappingFileName(d.doc.fileName));
-  d.downloadedCsv = true;
+function downloadCsv(d: DocState, root: HTMLElement): void {
+  saveCsv(d);
+  warnIfStale(d.docVer, d, '去識別化文件');
+  render(root);
 }
 
 function downloadMerged(): void {
@@ -803,8 +856,8 @@ async function downloadAll(root: HTMLElement): Promise<void> {
     toast(`打包 ${state.docs.length} 個檔案中…`, 'info', 3000);
     const { blob } = await buildArchive(state.docs.map((d) => ({ doc: d.doc, items: d.items })), hasMergedTable() ? mergedMapping() : undefined);
     for (const d of state.docs) {
-      d.downloadedDoc = true;
-      d.downloadedCsv = true;
+      d.docVer = d.version;
+      d.csvVer = d.version;
     }
     const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
     downloadBlob(blob, `去識別化-${stamp}.zip`);

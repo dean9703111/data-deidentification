@@ -32,7 +32,7 @@ function applySplit(item: RedactionItem, retention: Retention | undefined, book:
 }
 
 /**
- * Re-splits every item for a new output mode (全部編碼／同預覽／自訂). Codes follow the split, so an
+ * Re-splits every item for a new output mode (全部隱藏／部分保留／自訂). Codes follow the split, so an
  * item whose kept characters change gets the code for its new split (see CodeBook).
  */
 export function resplitItems(items: RedactionItem[], book: CodeBook, resolve: (it: RedactionItem) => Retention | undefined): void {

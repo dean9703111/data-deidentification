@@ -69,7 +69,7 @@ await shot(page, '01-upload');
 
 // 2. Preview after detection (list collapsed by default)
 await upload(page, '.process-view input[type=file]', 'examples/01-核心流程/委外服務契約書.docx');
-await annotate(page, [['.legend', 1], ['.preview', 2], ['.list-toggle-host .btn', 3], ['.toolbar-actions', 4]]);
+await annotate(page, [['.output-panel-summary', 1], ['.preview', 2], ['.list-toggle', 3], ['.toolbar-actions', 4]]);
 await shot(page, '02-preview');
 
 // 2a. Batch: several files at once, file panel on the left, zip download
@@ -88,7 +88,7 @@ await shot(page, '02a-batch');
 await page.evaluate(() => (document.querySelector('.toolbar-actions .btn-ghost') as HTMLButtonElement).click());
 await new Promise((r) => setTimeout(r, 300));
 await upload(page, '.process-view input[type=file]', 'examples/01-核心流程/客戶資料.xlsx');
-await annotate(page, [['.sheet-tabs', 1], ['.sheet-scroll', 2], ['.legend-toggles', 3]]);
+await annotate(page, [['.sheet-tabs', 1], ['.sheet-scroll', 2], ['.preview-head-tools', 3]]);
 await shot(page, '02b-preview-xlsx');
 // 2c. PDF preview: pages laid out at original coordinates
 await page.evaluate(() => (document.querySelector('.toolbar-actions .btn-ghost') as HTMLButtonElement).click());
@@ -102,19 +102,17 @@ await page.evaluate(() => (document.querySelector('.toolbar-actions .btn-ghost')
 await new Promise((r) => setTimeout(r, 300));
 await upload(page, '.process-view input[type=file]', 'examples/01-核心流程/委外服務契約書.docx');
 
-// 2d/2e. Output mode: 同預覽 (preview mask with codes in place of the stars), then 自訂 per category
-const showMarkers = (on: boolean) =>
-  page.evaluate((v) => {
-    const t = document.querySelector('.legend-toggles .legend-toggle:last-child input') as HTMLInputElement;
-    if (t.checked !== v) t.click();
-  }, on);
+// 2d/2e. Output settings panel: 部分保留, then 自訂 per category (preview shows the output, codes as [類別])
+const setPanel = (open: boolean) => page.evaluate((v) => ((document.querySelector('.output-panel') as HTMLDetailsElement).open = v), open);
+await setPanel(true);
 await page.click('input[name=output-mode][value=preview]');
 await new Promise((r) => setTimeout(r, 300));
-await showMarkers(true);
-await annotate(page, [['.output-panel-head', 1], ['.output-panel p', 2], ['.preview', 3]]);
+await setPanel(true);
+await annotate(page, [['.output-modes', 1], ['.output-panel .notice', 2], ['.output-panel .table-wrap', 3]]);
 await shot(page, '02d-output-preview');
 await page.click('input[name=output-mode][value=custom]');
 await new Promise((r) => setTimeout(r, 300));
+await setPanel(true);
 await page.evaluate(() => {
   const row = [...document.querySelectorAll('.output-table tr')].find((tr) => tr.textContent!.includes('身分證'))!;
   const sel = row.querySelector('select') as HTMLSelectElement;
@@ -122,6 +120,7 @@ await page.evaluate(() => {
   sel.dispatchEvent(new Event('change'));
 });
 await new Promise((r) => setTimeout(r, 300));
+await setPanel(true);
 await page.evaluate(() => {
   const row = [...document.querySelectorAll('.output-table tr')].find((tr) => tr.textContent!.includes('身分證'))!;
   const head = row.querySelector('input[type=number]') as HTMLInputElement;
@@ -129,24 +128,21 @@ await page.evaluate(() => {
   head.dispatchEvent(new Event('change'));
 });
 await new Promise((r) => setTimeout(r, 300));
-await showMarkers(true);
-await page.evaluate(() => {
-  const row = [...document.querySelectorAll('.output-table tr')].find((tr) => tr.textContent!.includes('身分證'))!;
-  row.classList.add('shot-row');
-});
-await annotate(page, [['.output-table', 1], ['.output-table .shot-row', 2], ['.toolbar-row.muted .notice', 3]]);
+await setPanel(true);
+await page.evaluate(() => [...document.querySelectorAll('.output-table tr')].find((tr) => tr.textContent!.includes('身分證'))!.classList.add('shot-row'));
+await annotate(page, [['.output-table .shot-row', 1], ['.output-panel .form-actions', 2], ['.status-line .notice', 3]]);
 await shot(page, '02e-output-custom');
-// back to 全部編碼 with the friendly mask for the remaining steps
+// back to 全部隱藏 with the panel collapsed for the remaining steps
 await page.click('input[name=output-mode][value=code]');
 await new Promise((r) => setTimeout(r, 300));
-await showMarkers(false);
+await setPanel(false);
 
 // 3. Tooltip on hover
 await page.evaluate(() => {
   const m = document.querySelectorAll('.preview .mark')[2] as HTMLElement;
   m.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 });
-await annotate(page, [['.tooltip', 1], ['.legend-toggles .legend-toggle:last-child', 2]]);
+await annotate(page, [['.tooltip', 1]]);
 await shot(page, '03-tooltip');
 await page.evaluate(() => (document.querySelector<HTMLElement>('.tooltip')!.hidden = true));
 
@@ -162,15 +158,22 @@ await shot(page, '04-click-cancel');
 await page.evaluate(() => ([...document.querySelectorAll<HTMLButtonElement>('.add-popup .btn')].find((b) => b.textContent === '取消去識別化')!).click());
 await new Promise((r) => setTimeout(r, 200));
 
-// 4b. Legend category toggle (市話 off) + expanded list showing cancelled items
-await page.evaluate(() => ([...document.querySelectorAll<HTMLButtonElement>('.legend-chip')].find((b) => b.textContent!.startsWith('市話'))!).click());
-await new Promise((r) => setTimeout(r, 200));
-await page.evaluate(() => (document.querySelector('.list-toggle-host .btn') as HTMLButtonElement).click());
+// 4b. Category switched off in the output panel (市話) + expanded list showing cancelled items
+await setPanel(true);
+await page.evaluate(() => {
+  const row = [...document.querySelectorAll('.output-table tr')].find((tr) => tr.textContent!.includes('市話'))!;
+  (row.querySelector('input[type=checkbox]') as HTMLInputElement).click();
+});
 await new Promise((r) => setTimeout(r, 300));
-await annotate(page, [['.legend-chip.legend-off', 1], ['.cancelled', 2], ['.item-list', 3], ['.item-cancelled .btn', 4]]);
+await setPanel(true);
+await page.evaluate(() => (document.querySelector('.list-toggle') as HTMLButtonElement).click());
+await new Promise((r) => setTimeout(r, 300));
+await page.evaluate(() => [...document.querySelectorAll('.output-table tr')].find((tr) => tr.textContent!.includes('市話'))!.classList.add('shot-row'));
+await annotate(page, [['.output-table .shot-row', 1], ['.cancelled', 2], ['.item-list', 3], ['.item-cancelled .btn', 4]]);
 await shot(page, '04b-category-list');
-await page.evaluate(() => (document.querySelector('.list-toggle-host .btn') as HTMLButtonElement).click());
+await page.evaluate(() => (document.querySelector('.list-toggle') as HTMLButtonElement).click());
 await new Promise((r) => setTimeout(r, 300));
+await setPanel(false);
 
 // 4c. Add manually via selection popup
 await page.evaluate(() => {
@@ -188,12 +191,17 @@ await new Promise((r) => setTimeout(r, 200));
 await page.select('.add-popup select', '識別碼'); // first select = category (retention choice only shows in 自訂)
 await annotate(page, [['.add-popup', 1]]);
 await shot(page, '04c-add');
-await page.evaluate(() => document.querySelector('.add-popup')?.remove());
+await page.evaluate(() => {
+  document.querySelector('.add-popup')?.remove();
+  window.getSelection()!.removeAllRanges();
+});
 
 // 5. Download bar
 await page.evaluate(() => window.scrollTo(0, 0));
-await annotate(page, [['.toolbar-actions .btn-primary', 1], ['.toolbar-row.muted', 2]]);
+await page.evaluate(() => ((document.querySelector('.menu') as HTMLDetailsElement).open = true));
+await annotate(page, [['.toolbar-actions .btn-primary', 1], ['.menu-list', 2], ['.status-line', 3]]);
 await shot(page, '05-download');
+await page.evaluate(() => ((document.querySelector('.menu') as HTMLDetailsElement).open = false));
 
 // 6. Patterns page with a custom rule being tested
 await page.click('[data-tab="patterns"]');
@@ -202,30 +210,9 @@ await page.type('.form-card input[placeholder="例如：員工編號"]', '員工
 await page.type('.form-card input.mono', 'EMP-\\d{6}');
 await page.type('.form-card input[placeholder="例如：EMP-004521"]', 'EMP-004521');
 await page.type('.form-card textarea', '承辦 EMP-004521 與 EMP-000001');
-await annotate(page, [['.table-wrap', 1], ['.switch', 2], ['.form-card', 3], ['.hits', 4]]);
+await annotate(page, [['.table-wrap', 1], ['.switch', 2], ['.form-card', 3], ['.hits', 4], ['.patterns-view thead th:nth-child(7)', 5]]);
 await shot(page, '06-patterns', true);
 
-// 6b. Retention setting of a rule (身分證 keeps the first 2 characters)
-await page.evaluate(() => {
-  const row = [...document.querySelectorAll('.patterns-view tbody tr')].find((tr) => tr.textContent!.includes('A123456789'))!;
-  const btn = [...row.querySelectorAll<HTMLButtonElement>('button')].find((b) => /隱藏|保留/.test(b.textContent!))!;
-  btn.classList.add('shot-keep');
-  btn.click();
-});
-await new Promise((r) => setTimeout(r, 300));
-await page.evaluate(() => {
-  const ed = document.querySelector('.retention-editor')!;
-  const sel = ed.querySelector('select') as HTMLSelectElement;
-  sel.value = 'ends';
-  sel.dispatchEvent(new Event('input'));
-  const head = ed.querySelector('input[type=number]') as HTMLInputElement;
-  head.value = '2';
-  head.dispatchEvent(new Event('input'));
-  ed.scrollIntoView({ block: 'center' });
-});
-await new Promise((r) => setTimeout(r, 300));
-await annotate(page, [['.patterns-view thead th:nth-child(7)', 1], ['.retention-controls', 2], ['.retention-preview', 3], ['.retention-editor .form-actions', 4]]);
-await shot(page, '06b-retention');
 
 // 7. Restore page with a missing-code warning
 await page.click('[data-tab="restore"]');

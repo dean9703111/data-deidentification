@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { checkRetention, describeRetention, firstExample, modesFor, sanitizeRetention, splitFor } from '../../src/core/retention';
 import { CodeBook } from '../../src/core/codes';
 import { addManualItem, detect, resplitItems } from '../../src/core/detector';
-import { applyRedactions, mergeMappings, outputFor } from '../../src/core/redactor';
+import { applyRedactions, mergeMappings, outputFor, previewLabel } from '../../src/core/redactor';
 import { parseMapping, serializeMapping } from '../../src/core/csv';
 import { restore } from '../../src/core/restorer';
-import { maskItem } from '../../src/core/mask';
 import { BUILTIN_PATTERNS } from '../../src/core/patterns';
-import { SUGGESTED_RETENTION } from '../../src/core/retention';
+import { SUGGESTED_RETENTION } from '../helpers/retention-fixtures';
 import type { Pattern, RedactionItem } from '../../src/core/types';
 
 const SUGGESTED: Pattern[] = BUILTIN_PATTERNS.map((p) => ({ ...p, retention: SUGGESTED_RETENTION[p.id] }));
@@ -85,8 +84,8 @@ describe('partial output', () => {
     expect(outputFor(byOriginal('0912-345-678'))).toMatch(/^\[手機:[0-9a-f]{6}\]678$/);
     expect(outputFor(byOriginal('amy.chen@gmail.com'))).toMatch(/^\[電子郵件:[0-9a-f]{6}\]@gmail\.com$/);
     expect(outputFor(byOriginal('台北市信義區市府路45號8樓'))).toMatch(/^台北市信義區\[地址:[0-9a-f]{6}\]$/);
-    expect(maskItem(byOriginal('A123456789'))).toBe('A1********');
-    expect(maskItem(byOriginal('王小明'))).toBe('王OO');
+    expect(previewLabel(byOriginal('A123456789'))).toBe('A1[身分證]');
+    expect(previewLabel(byOriginal('王小明'))).toBe('王[姓名]');
 
     const { mapping, redactedText } = applyRedactions(text, items);
     expect(mapping.find((m) => m.category === '身分證' && m.prefix === 'A1')?.original).toBe('23456789');
@@ -155,7 +154,7 @@ describe('shared and imported codes', () => {
   });
 });
 
-describe('preview-style output (同預覽)', () => {
+describe('preview-style output (部分保留)', () => {
   const cases: [string, string, RegExp][] = [
     ['姓名', '王小明', /^王\[姓名:\w{6}\]$/],
     ['身分證', 'A123456789', /^A12\[身分證:\w{6}\]9$/],
@@ -174,7 +173,7 @@ describe('preview-style output (同預覽)', () => {
 });
 
 describe('resplitItems', () => {
-  it('switches between 全部編碼 and 同預覽 and restores exactly either way', () => {
+  it('switches between 全部隱藏 and 部分保留 and restores exactly either way', () => {
     const text = '王小明 A123456789 0912-345-678';
     const book = new CodeBook();
     const items = detect(text, BUILTIN_PATTERNS, book);
@@ -188,5 +187,18 @@ describe('resplitItems', () => {
     expect(code.redactedText).toMatch(/^\[姓名:\w{6}\] \[身分證:\w{6}\] \[手機:\w{6}\]$/);
     expect(items.every((i) => !i.head && !i.tail)).toBe(true);
     expect(restore(code.redactedText, code.mapping).restoredText).toBe(text);
+  });
+});
+
+describe('setCategoryRetention (設為預設)', () => {
+  it('writes one retention to every rule of the category and clears it with 全部隱藏', async () => {
+    const { setCategoryRetention, getEffectivePatterns } = await import('../../src/core/pattern-store');
+    const base = { version: 1 as const, disabledBuiltins: [], customPatterns: [{ id: 'c-1', name: '員編', category: '身分證' as const, regex: 'EMP\\d+', example: 'EMP1', enabled: true }] };
+    const set = setCategoryRetention(base, '身分證', { mode: 'ends', head: 2, tail: 0 });
+    const ids = getEffectivePatterns(set).filter((p) => p.category === '身分證').map((p) => p.retention);
+    expect(ids).toEqual([{ mode: 'ends', head: 2, tail: 0 }, { mode: 'ends', head: 2, tail: 0 }]);
+    expect(getEffectivePatterns(set).find((p) => p.category === '姓名')!.retention).toBeUndefined();
+    const cleared = setCategoryRetention(set, '身分證', { mode: 'none' });
+    expect(cleared.retention).toEqual({});
   });
 });

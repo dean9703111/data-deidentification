@@ -1,4 +1,4 @@
-import type { Category, RedactionItem } from './types';
+import type { Category } from './types';
 
 export const COMPOUND_SURNAMES = ['歐陽', '司馬', '諸葛', '上官', '張簡', '范姜', '司徒', '東方', '令狐', '南宮', '端木', '皇甫', '尉遲', '夏侯'];
 
@@ -54,14 +54,4 @@ export function maskDisplay(category: Category, original: string): string {
     default:
       return keepEnds(original, 3, 0);
   }
-}
-
-/** Preview mask for an item: with kept characters, show exactly those and star the hidden part. */
-export function maskItem(it: RedactionItem): string {
-  const head = it.head ?? 0;
-  const tail = it.tail ?? 0;
-  if (!head && !tail) return maskDisplay(it.category, it.original);
-  const o = it.original;
-  const fill = it.category === '姓名' ? 'O' : '*';
-  return o.slice(0, head) + fill.repeat(o.length - head - tail) + o.slice(o.length - tail);
 }

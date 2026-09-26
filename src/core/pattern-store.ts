@@ -1,4 +1,4 @@
-import type { CustomPatternConfig, Pattern, PatternConfig, Retention } from './types';
+import type { Category, CustomPatternConfig, Pattern, PatternConfig, Retention } from './types';
 import { BUILTIN_PATTERNS } from './patterns';
 import { sanitizeRetention } from './retention';
 
@@ -90,6 +90,13 @@ export function removeCustom(config: PatternConfig, id: string): PatternConfig {
   const retention = { ...(config.retention ?? {}) };
   delete retention[id];
   return { ...config, customPatterns: config.customPatterns.filter((c) => c.id !== id), retention };
+}
+
+/** Applies one retention to every rule of a category (the 設為預設 button on the processing page). */
+export function setCategoryRetention(config: PatternConfig, category: Category, r: Retention): PatternConfig {
+  let next = config;
+  for (const p of getEffectivePatterns(config)) if (p.category === category) next = setRetention(next, p.id, r);
+  return next;
 }
 
 export function setRetention(config: PatternConfig, id: string, r: Retention): PatternConfig {
