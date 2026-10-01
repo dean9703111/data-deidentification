@@ -1,6 +1,6 @@
 import './styles.css';
 import { el, installTooltips } from './ui/components';
-import { createProcessView, hasUnsavedResults } from './ui/process-view';
+import { createProcessView, hasUnsavedResults, syncPatternChanges } from './ui/process-view';
 import { createPatternsView } from './ui/patterns-view';
 import { createRestoreView } from './ui/restore-view';
 
@@ -43,6 +43,9 @@ function mount(): void {
   const views = new Map<TabId, HTMLElement>();
 
   const activate = (id: TabId) => {
+    // Popups are attached to <body>, so they would otherwise linger over the other tabs.
+    document.querySelector('.add-popup')?.remove();
+    window.getSelection()?.removeAllRanges();
     for (const t of TABS) {
       nav.querySelector(`[data-tab="${t.id}"]`)?.classList.toggle('active', t.id === id);
       let v = views.get(t.id);
@@ -59,6 +62,7 @@ function mount(): void {
       views.get('patterns')?.replaceWith(fresh);
       views.set('patterns', fresh);
     }
+    if (id === 'process') syncPatternChanges();
   };
 
   for (const t of TABS) {

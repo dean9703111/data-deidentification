@@ -56,6 +56,8 @@ interface State {
   outputMode: OutputMode;
   /** 自訂 mode: per-category retention overriding the rules' own setting. */
   overrides: Map<Category, Retention>;
+  /** Fingerprint of the patterns the loaded documents were last detected with. */
+  patternKey: string;
 }
 
 const state: State = {
@@ -70,6 +72,7 @@ const state: State = {
   sharedBook: null,
   outputMode: 'preview',
   overrides: new Map(),
+  patternKey: '',
 };
 
 /** Retention of the first enabled rule of a category (the 自訂 default before any override). */
@@ -118,6 +121,8 @@ const hasMergedTable = (): boolean => state.sharedCodes || state.imported !== nu
 function mergedMapping(): MappingEntry[] {
   return mergeMappings(state.imported?.entries ?? [], ...state.docs.map((d) => applyRedactions(d.doc.text, d.items).mapping));
 }
+/** The mounted view, so changes made in other tabs can re-render it. */
+let viewRoot: HTMLElement | null = null;
 
 const current = (): DocState => state.docs[state.active];
 
@@ -158,8 +163,30 @@ export function hasUnsavedResults(): boolean {
 
 export function createProcessView(): HTMLElement {
   const root = el('section', { class: 'view process-view' });
+  viewRoot = root;
+  state.patternKey = patternKey();
   render(root);
   return root;
+}
+
+function patternKey(): string {
+  return JSON.stringify(getEffectivePatterns().filter((p) => p.enabled).map((p) => [p.id, p.category, p.regex]));
+}
+
+/**
+ * Called when the tab becomes visible again: if detection rules changed in the meantime
+ * (e.g. a rule added in「偵測規則」), re-detect every loaded document, keeping manual items,
+ * codes and the user's cancellations for matches that are still found.
+ */
+export function syncPatternChanges(): void {
+  const key = patternKey();
+  if (key === state.patternKey) return;
+  state.patternKey = key;
+  if (state.docs.length === 0 || !viewRoot) return;
+  for (const d of state.docs) rescan(d, true);
+  const total = state.docs.reduce((n, d) => n + d.items.length, 0);
+  toast(`偵測規則已變更，已重新偵測（共 ${total} 筆）`, 'success');
+  render(viewRoot);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -204,15 +231,26 @@ async function importFiles(files: File[], root: HTMLElement): Promise<void> {
   render(root);
 }
 
-function redetect(root: HTMLElement): void {
-  const d = current();
+/**
+ * Re-runs detection on a document, keeping manual items. With `keep`, an automatic match
+ * found again at the same place reuses its previous item (id, code, cancelled state).
+ */
+function rescan(d: DocState, keep: boolean): { auto: number; manual: number } {
   const manual = d.items.filter((it) => it.origin === 'manual');
-  const fresh = detect(d.doc.text, getEffectivePatterns(), d.book).filter((a) => !manual.some((m) => m.active && a.start < m.end && a.end > m.start));
+  const old = new Map(d.items.filter((it) => it.origin === 'auto').map((it) => [`${it.start},${it.end},${it.category}`, it]));
+  const fresh = detect(d.doc.text, getEffectivePatterns(), d.book)
+    .filter((a) => !manual.some((m) => m.active && a.start < m.end && a.end > m.start))
+    .map((a) => (keep && old.get(`${a.start},${a.end},${a.category}`)) || a);
   d.items = [...manual, ...fresh].sort((a, b) => a.start - b.start);
   applyOutputMode(d);
   applyDisabledCategories(d);
   markDirty(d);
-  toast(`重新偵測完成：自動 ${fresh.length} 筆、手動 ${manual.length} 筆`, 'success');
+  return { auto: fresh.length, manual: manual.length };
+}
+
+function redetect(root: HTMLElement): void {
+  const { auto, manual } = rescan(current(), false);
+  toast(`重新偵測完成：自動 ${auto} 筆、手動 ${manual} 筆`, 'success');
   render(root);
 }
 
