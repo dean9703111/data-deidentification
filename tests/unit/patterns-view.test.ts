@@ -20,7 +20,7 @@ describe('patterns view helpers', () => {
     expect(view.querySelector<HTMLInputElement>('input[placeholder="例如：員工編號"]')!.value).toBe('員工編號');
     expect(view.querySelector<HTMLSelectElement>('select')!.value).toBe('識別碼');
     expect(view.querySelector<HTMLInputElement>('input.mono')!.value).toBe('EMP-\\d{6}');
-    expect(view.querySelector<HTMLInputElement>('input[placeholder="例如：EMP-004521"]')!.value).toBe('EMP-004521');
+    expect(view.querySelector('input[placeholder="例如：EMP-004521"]')).toBeNull();
     expect(view.querySelector<HTMLTextAreaElement>('textarea')!.value).toContain('EMP-004521');
 
     const marks = [...view.querySelectorAll('.hits mark')].map((m) => m.textContent);
@@ -41,6 +41,7 @@ describe('patterns view helpers', () => {
     expect(tip).toContain('JavaScript 正規表達式');
     expect(tip).toContain("'gu'");
     expect(tip).toContain('識別碼');
+    expect(tip).toContain('測試文字');
 
     btn.click();
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(tip));
@@ -59,5 +60,14 @@ describe('patterns view helpers', () => {
     [...view.querySelectorAll<HTMLButtonElement>('.col-actions button')].find((b) => b.textContent === '編輯')!.click();
     expect(byLabel(view, '填入範例')).toBeUndefined();
     expect(byLabel(view, '複製 AI 提示詞')).toBeDefined();
+  });
+
+  it('saves the first hit in the test text as the rule\'s example', () => {
+    const view = createPatternsView();
+    document.body.append(view);
+    byLabel(view, '填入範例').click();
+    byLabel(view, '新增規則').click();
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+    expect(saved.customPatterns[0].example).toBe('EMP-004521');
   });
 });

@@ -42,11 +42,12 @@ async function annotate(page: Page, targets: [string, number][]): Promise<void> 
 
 async function shot(page: Page, name: string, fullPage = false): Promise<void> {
   await page.evaluate(() => document.querySelectorAll('.toast').forEach((t) => t.remove()));
-  // A sticky header would be painted over the page top in full-page captures.
-  if (fullPage) await page.evaluate(() => ((document.querySelector('.header') as HTMLElement).style.position = 'static'));
+  // The sticky header and footer would be painted over the page content in full-page captures.
+  const pinned = (position: string) => page.evaluate((p) => document.querySelectorAll<HTMLElement>('.header, .footer').forEach((e) => (e.style.position = p)), position);
+  if (fullPage) await pinned('static');
   await new Promise((r) => setTimeout(r, 250));
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage });
-  if (fullPage) await page.evaluate(() => ((document.querySelector('.header') as HTMLElement).style.position = ''));
+  if (fullPage) await pinned('');
   console.log('saved', `${OUT}/${name}.png`);
 }
 
@@ -208,7 +209,6 @@ await page.click('[data-tab="patterns"]');
 await new Promise((r) => setTimeout(r, 300));
 await page.type('.form-card input[placeholder="例如：員工編號"]', '員工編號');
 await page.type('.form-card input.mono', 'EMP-\\d{6}');
-await page.type('.form-card input[placeholder="例如：EMP-004521"]', 'EMP-004521');
 await page.type('.form-card textarea', '承辦 EMP-004521 與 EMP-000001');
 await annotate(page, [['.table-wrap', 1], ['.switch', 2], ['.form-card', 3], ['.hits', 4], ['.patterns-view thead th:nth-child(7)', 5]]);
 await shot(page, '06-patterns', true);

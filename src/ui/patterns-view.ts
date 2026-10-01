@@ -10,22 +10,20 @@ const SAMPLE_RULE = {
   name: '員工編號',
   category: '識別碼' as Category,
   regex: 'EMP-\\d{6}',
-  example: 'EMP-004521',
   sample: '承辦人員工編號 EMP-004521，協辦 EMP-000317；舊制編號 EMP-12345 位數不足，不會命中。',
 };
 
 /** Prompt users can paste into an AI assistant to get a rule that fits this tool's RegExp constraints. */
 const AI_PROMPT = [
-  '我在使用「文件去識別化工具」，需要新增一條自訂偵測規則，請幫我寫一個 JavaScript 正規表達式（RegExp）。限制如下：',
-  '1. 工具會以 new RegExp(規則, \'gu\') 在整份文件中搜尋，請只回覆規則本身，不要加前後斜線、flags，也不要加 ^ 或 $。',
-  '2. 規則不可比對到空字串，且只能使用 JavaScript 支援的語法。',
-  '3. 請避免過度寬鬆而誤抓一般文字。',
+  '請幫我寫一個 JavaScript 正規表達式，偵測文件中的：（例如：員工編號，EMP- 開頭接 6 位數字）',
   '',
-  '我要偵測的內容：（描述格式，例如：員工編號，EMP- 開頭接 6 位數字）',
-  '應該命中的例子：（例如：EMP-004521、EMP-000317）',
-  '不應該命中的例子與原因：（例如：EMP-12345 只有 5 位數字、emp-004521 是小寫開頭）',
+  "限制：以 new RegExp(規則, 'gu') 搜尋整份文件；不要加斜線、flags、^ 或 $；不可比對空字串；避免誤抓一般文字。",
   '',
-  `請依序回覆：規則名稱、建議類別（${CATEGORIES.join('／')} 擇一）、規則、一個範例值，並簡短說明規則各部分的意思。`,
+  '請只回覆以下四項：',
+  '1. 名稱',
+  `2. 類別（${CATEGORIES.join('／')} 擇一）`,
+  '3. 規則',
+  '4. 測試文字：一段 2～3 句的文字，同時包含應命中與不應命中的例子',
 ].join('\n');
 
 async function copyToClipboard(text: string): Promise<void> {
@@ -112,19 +110,24 @@ function renderForm(root: HTMLElement, config: PatternConfig, editing: CustomPat
   const category = el('select', { class: 'select' }, ...CATEGORIES.map((c) => el('option', { value: c }, c))) as HTMLSelectElement;
   category.value = editing?.category ?? '識別碼';
   const regex = el('input', { class: 'input mono', placeholder: '例如：EMP-\\d{6}', value: editing?.regex ?? '' }) as HTMLInputElement;
-  const example = el('input', { class: 'input', placeholder: '例如：EMP-004521', value: editing?.example ?? '' }) as HTMLInputElement;
-  const sample = el('textarea', { class: 'input', rows: '3', placeholder: '貼上測試文字，即時檢視命中結果' }) as HTMLTextAreaElement;
+  const sample = el('textarea', { class: 'input', rows: '3', placeholder: '貼上測試文字，即時檢視命中結果；第一筆命中會作為規則列表的範例' }) as HTMLTextAreaElement;
+  sample.value = editing?.example ?? '';
   const regexError = el('div', { class: 'field-error' });
   const hits = el('div', { class: 'hits' });
+
+  /** Matches of the current rule in the test text (empty when the rule is invalid). */
+  const matches = (): string[] => {
+    if (validateRegex(regex.value) || !sample.value) return [];
+    const re = compilePattern({ regex: regex.value } as Pattern);
+    return re ? [...sample.value.matchAll(re)].map((m) => m[0]) : [];
+  };
 
   const preview = () => {
     const err = validateRegex(regex.value);
     regexError.textContent = err ?? '';
     clear(hits);
     if (err || !sample.value) return;
-    const re = compilePattern({ regex: regex.value } as Pattern);
-    if (!re) return;
-    const found = [...sample.value.matchAll(re)].map((m) => m[0]);
+    const found = matches();
     hits.append(found.length === 0 ? el('span', { class: 'muted' }, '無命中') : el('span', {}, `命中 ${found.length} 筆：`), ...found.map((f) => el('mark', { class: 'mark mark-識別碼' }, f)));
   };
   regex.addEventListener('input', preview);
@@ -147,7 +150,7 @@ function renderForm(root: HTMLElement, config: PatternConfig, editing: CustomPat
         name: name.value.trim(),
         category: category.value as Category,
         regex: regex.value,
-        example: example.value.trim(),
+        example: matches()[0] ?? editing?.example ?? '',
         enabled: editing?.enabled ?? true,
       });
       saveConfig(next);
@@ -162,7 +165,6 @@ function renderForm(root: HTMLElement, config: PatternConfig, editing: CustomPat
     name.value = SAMPLE_RULE.name;
     category.value = SAMPLE_RULE.category;
     regex.value = SAMPLE_RULE.regex;
-    example.value = SAMPLE_RULE.example;
     sample.value = SAMPLE_RULE.sample;
     preview();
     toast('已填入範例規則，可直接修改，再按「新增規則」儲存', 'info', 3000);
@@ -170,7 +172,7 @@ function renderForm(root: HTMLElement, config: PatternConfig, editing: CustomPat
   const copyPrompt = async () => {
     try {
       await copyToClipboard(AI_PROMPT);
-      toast('已複製提示詞，貼給 ChatGPT、Claude 或 Gemini，並補上你要偵測的格式與例子', 'success', 5000);
+      toast('已複製提示詞，貼給 ChatGPT、Claude 或 Gemini 並改寫第一行要偵測的內容；回覆的測試文字可貼到「測試文字」驗證', 'success', 6000);
     } catch {
       toast('無法存取剪貼簿，請改用支援的瀏覽器', 'error');
     }
@@ -184,7 +186,6 @@ function renderForm(root: HTMLElement, config: PatternConfig, editing: CustomPat
       el('label', {}, '名稱', name),
       el('label', {}, '類別', category),
       el('label', { class: 'span-2' }, '比對規則（RegExp）', regex, regexError),
-      el('label', { class: 'span-2' }, '範例', example),
       el('label', { class: 'span-2' }, '測試文字', sample, hits),
       el('p', { class: 'muted small span-2' }, '要保留部分字元（例如員工證保留第 1 碼＝部門代碼），請在「去識別化」頁的「輸出方式」選「自訂」調整，再按「設為預設」。'),
     ),
